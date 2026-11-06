@@ -1,0 +1,2086 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AeroKite — Interactive Kite Physics & Aerodynamics Lab</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    :root {
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background-color: #070b14;
+      color: #f1f5f9;
+      overflow-x: hidden;
+      user-select: none;
+    }
+    .font-mono-num {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+    /* Custom Range Sliders */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: #1e293b;
+      border-radius: 999px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #38bdf8;
+      border: 2px solid #0f172a;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      background: #7dd3fc;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #38bdf8;
+      border: 2px solid #0f172a;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+      transition: transform 0.15s ease;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+
+  <header class="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-md px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 z-20">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+        <i class="ph-fill ph-paper-plane-tilt text-white text-xl -rotate-12"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-base sm:text-lg tracking-tight text-white">AeroKite</h1>
+          <span class="text-[11px] font-mono-num uppercase px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 font-semibold">Physics Lab v2.4</span>
+        </div>
+        <p class="text-xs text-slate-400 hidden sm:block">Real-Time Tethered Aerodynamics, Force Vectors & Flight Telemetry</p>
+      </div>
+    </div>
+
+    <!-- Flight Presets & Action Controls -->
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-lg p-1 text-xs">
+        <span class="text-slate-400 px-2 font-medium hidden md:inline">Preset:</span>
+        <button data-preset="standard" class="preset-btn px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-300 border border-sky-500/40 font-medium transition">Standard Diamond</button>
+        <button data-preset="ultralight" class="preset-btn px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition">Ultralight Breeze</button>
+        <button data-preset="storm" class="preset-btn px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition">Storm Gale</button>
+        <button data-preset="stall" class="preset-btn px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition">High-AoA Stall</button>
+        <button data-preset="highalt" class="preset-btn px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition">300m High-Alt</button>
+      </div>
+
+      <div class="flex items-center gap-1.5">
+        <button id="btnTugLine" class="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 select-none" title="Click for sharp line tug or HOLD to continuously winch-pull the kite for high altitude climb">
+          <i class="ph-bold ph-hand-grabbing"></i>
+          <span id="labelTugBtn">Hold to Pull / Tug</span>
+        </button>
+        <button id="btnWindGust" class="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95" title="Inject a temporary 3-second wind burst">
+          <i class="ph-bold ph-wind"></i>
+          <span>Wind Gust</span>
+        </button>
+        <button id="btnPause" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1 transition" title="Pause / Resume Physics">
+          <i id="iconPause" class="ph-fill ph-pause"></i>
+          <span id="labelPause" class="hidden sm:inline">Pause</span>
+        </button>
+        <button id="btnReset" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1 transition" title="Reset Kite Position & Flight State">
+          <i class="ph-bold ph-arrow-counter-clockwise"></i>
+          <span class="hidden sm:inline">Reset</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden relative">
+
+    <!-- Left/Main Area: Interactive Physics Viewport + Bottom Telemetry Strip -->
+    <div id="mainViewportCol" class="lg:col-span-8 xl:col-span-9 flex flex-col relative bg-slate-950 min-h-[540px] lg:min-h-0 transition-all duration-200">
+
+      <!-- Main Simulation Canvas Wrapper -->
+      <div id="canvasContainer" class="relative flex-1 w-full h-full overflow-hidden">
+        <canvas id="simCanvas" class="block w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+
+        <!-- Sleek Top-Center Floating UI Panel Manager Dock + Helper Banner -->
+        <div class="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 max-w-[95vw] pointer-events-none">
+          <!-- Always-accessible Panel Visibility Pill Dock -->
+          <div class="glass-panel rounded-full px-2.5 py-1 shadow-xl flex flex-wrap items-center justify-center gap-1 pointer-events-auto border border-slate-700/70">
+            <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 px-1.5 hidden sm:inline">Panels:</span>
+            <button id="dockBtnControls" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 transition flex items-center gap-1" title="Toggle Flight Controls Panel">
+              <i class="ph-bold ph-sliders-horizontal"></i><span>Controls</span>
+            </button>
+            <button id="dockBtnFbd" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 transition flex items-center gap-1" title="Toggle Free-Body Diagram HUD">
+              <i class="ph-bold ph-compass-tool"></i><span>FBD HUD</span>
+            </button>
+            <button id="dockBtnVectors" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 transition flex items-center gap-1" title="Toggle Vector Legend Overlay">
+              <i class="ph-bold ph-arrows-out-cardinal"></i><span>Vectors</span>
+            </button>
+            <button id="dockBtnTelemetry" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 transition flex items-center gap-1" title="Toggle Bottom Live Telemetry Dock">
+              <i class="ph-bold ph-chart-line-up"></i><span>Telemetry</span>
+            </button>
+            <button id="dockBtnTips" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 transition flex items-center gap-1" title="Toggle Interactive Flight Tips Banner">
+              <i class="ph-bold ph-lightbulb"></i><span>Tips</span>
+            </button>
+            <div class="h-3 w-[1px] bg-slate-700 mx-0.5"></div>
+            <button id="dockBtnToggleAll" class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600/80 transition" title="Hide or Restore All Floating UI Panels">
+              Hide All UI
+            </button>
+          </div>
+
+          <!-- Closeable & Minimizable Interactive Flight Tips / Helper Banner -->
+          <div id="tipsBannerPanel" class="glass-panel rounded-xl px-3 py-2 text-[11px] text-slate-200 shadow-lg pointer-events-auto max-w-xl w-full transition-all">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-1.5 font-semibold text-sky-300">
+                <i class="ph-fill ph-hand-pointing text-sky-400 text-sm"></i>
+                <span>Interactive Flight & Tether Guide</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <button id="btnMinTips" class="w-5 h-5 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition" title="Minimize / Expand Tips">
+                  <i class="ph-bold ph-minus text-[10px]"></i>
+                </button>
+                <button id="btnCloseTips" class="w-5 h-5 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 flex items-center justify-center transition" title="Close Tips Banner">
+                  <i class="ph-bold ph-x text-[10px]"></i>
+                </button>
+              </div>
+            </div>
+            <div id="tipsBannerBody" class="mt-1 text-slate-300 leading-relaxed flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] border-t border-slate-800/80 pt-1.5">
+              <span>• <b>Drag Kite Far Out:</b> Pull anywhere up to <b>300m</b> (auto-extends line)</span>
+              <span>• <b>Hold "Pull / Tug" (or Spacebar):</b> Winch-pull line for steep altitude climb</span>
+              <span>• <b>Mouse Wheel:</b> Reel line in/out (hold <b>Shift+Wheel</b> to zoom)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top-Left Overlay: Flight Regime Badge & Vector Legend (Closeable & Minimizable) -->
+        <div id="vectorsHudPanel" class="absolute top-3 left-3 flex flex-col gap-2 pointer-events-none max-w-xs sm:max-w-md z-20">
+          <div class="glass-panel rounded-xl px-3.5 py-2.5 shadow-xl pointer-events-auto">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2">
+                <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span id="flightRegimeText" class="text-xs font-bold tracking-wide uppercase text-emerald-300">Stable Equilibrium Flight</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span id="localWindBadge" class="text-[11px] font-mono-num text-sky-300 bg-sky-950/80 border border-sky-800/60 px-2 py-0.5 rounded">V_app: 9.2 m/s</span>
+                <button id="btnMinVectors" class="w-5 h-5 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition" title="Minimize Vector Legend">
+                  <i class="ph-bold ph-minus text-[10px]"></i>
+                </button>
+                <button id="btnCloseVectors" class="w-5 h-5 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 flex items-center justify-center transition" title="Close Vector Legend HUD">
+                  <i class="ph-bold ph-x text-[10px]"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Force Vector Toggles & Color Legend -->
+            <div id="vectorsHudBody" class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] border-t border-slate-800/90 pt-2 mt-2">
+              <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                <input type="checkbox" id="chkLift" checked class="accent-emerald-400 rounded">
+                <span class="w-2.5 h-2.5 rounded-sm bg-emerald-400 inline-block"></span>
+                <span class="text-slate-200 font-medium">Lift (F<sub>L</sub>)</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                <input type="checkbox" id="chkDrag" checked class="accent-rose-400 rounded">
+                <span class="w-2.5 h-2.5 rounded-sm bg-rose-400 inline-block"></span>
+                <span class="text-slate-200 font-medium">Drag (F<sub>D</sub>)</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                <input type="checkbox" id="chkGravity" checked class="accent-amber-400 rounded">
+                <span class="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span>
+                <span class="text-slate-200 font-medium">Gravity (F<sub>g</sub>)</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                <input type="checkbox" id="chkTension" checked class="accent-purple-400 rounded">
+                <span class="w-2.5 h-2.5 rounded-sm bg-purple-400 inline-block"></span>
+                <span class="text-slate-200 font-medium">Tension (T)</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                <input type="checkbox" id="chkNet" class="accent-sky-300 rounded">
+                <span class="w-2.5 h-2.5 rounded-sm bg-sky-300 inline-block"></span>
+                <span class="text-slate-300 font-medium">Apparent Wind</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top-Right Overlay: Zoomed Free-Body Diagram (FBD) & Adaptive Camera Controls -->
+        <div class="absolute top-3 right-3 flex flex-col items-end gap-2 z-20 pointer-events-none">
+          <div id="fbdPanel" class="glass-panel rounded-xl p-2.5 shadow-xl w-48 sm:w-56 transition-all pointer-events-auto">
+            <div class="flex items-center justify-between gap-1 mb-1">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1">
+                <i class="ph-bold ph-compass-tool text-sky-400"></i>
+                <span>FBD HUD</span>
+              </span>
+              <div class="flex items-center gap-1">
+                <span id="fbdAoAText" class="text-[11px] font-mono-num text-amber-300 font-semibold mr-1">α = 14.0°</span>
+                <button id="btnMinFbd" class="w-5 h-5 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition" title="Minimize Free-Body Diagram">
+                  <i class="ph-bold ph-minus text-[10px]"></i>
+                </button>
+                <button id="btnCloseFbd" class="w-5 h-5 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 flex items-center justify-center transition" title="Close Free-Body Diagram">
+                  <i class="ph-bold ph-x text-[10px]"></i>
+                </button>
+              </div>
+            </div>
+            <div id="fbdPanelBody">
+              <canvas id="fbdCanvas" width="190" height="150" class="w-full h-[135px] rounded-lg bg-slate-950/80 border border-slate-800/80"></canvas>
+              <div class="mt-1.5 grid grid-cols-2 gap-1 text-[10px] font-mono-num">
+                <div class="flex items-center justify-between bg-slate-900/90 px-1.5 py-0.5 rounded text-emerald-300">
+                  <span>F_L:</span><span id="fbdLiftVal">0.0 N</span>
+                </div>
+                <div class="flex items-center justify-between bg-slate-900/90 px-1.5 py-0.5 rounded text-rose-300">
+                  <span>F_D:</span><span id="fbdDragVal">0.0 N</span>
+                </div>
+                <div class="flex items-center justify-between bg-slate-900/90 px-1.5 py-0.5 rounded text-amber-300">
+                  <span>F_g:</span><span id="fbdGravVal">0.0 N</span>
+                </div>
+                <div class="flex items-center justify-between bg-slate-900/90 px-1.5 py-0.5 rounded text-purple-300">
+                  <span>|T|:</span><span id="fbdTensVal">0.0 N</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Adaptive Camera Scale / Zoom Control (0.35x to 1.5x + Auto-Fit) -->
+          <div class="glass-panel rounded-xl p-2 flex flex-col gap-1.5 pointer-events-auto w-48 sm:w-56 shadow-lg">
+            <div class="flex items-center justify-between gap-1">
+              <button id="btnAutoCam" class="px-2 py-0.5 rounded text-[11px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 transition" title="Automatically scale camera to fit up to 300m tether length">
+                Auto-Fit Zoom
+              </button>
+              <div class="flex items-center gap-1">
+                <button id="btnZoomOut" class="p-1 rounded hover:bg-slate-800 text-slate-300 transition" title="Zoom Out">
+                  <i class="ph-bold ph-magnifying-glass-minus text-xs"></i>
+                </button>
+                <span id="valZoomMult" class="text-[11px] font-mono-num text-slate-200 font-semibold min-w-[38px] text-center">1.00x</span>
+                <button id="btnZoomIn" class="p-1 rounded hover:bg-slate-800 text-slate-300 transition" title="Zoom In">
+                  <i class="ph-bold ph-magnifying-glass-plus text-xs"></i>
+                </button>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 px-0.5">
+              <span class="text-[10px] font-mono-num text-slate-400">0.35x</span>
+              <input type="range" id="sliderZoom" min="0.35" max="1.5" step="0.05" value="1.0" class="flex-1">
+              <span class="text-[10px] font-mono-num text-slate-400">1.5x</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Closeable & Minimizable Live Telemetry & Strip Charts Dock -->
+      <div id="telemetryDockPanel" class="border-t border-slate-800/90 bg-slate-900/95 px-4 py-2.5 transition-all">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <i class="ph-bold ph-activity text-sky-400 text-sm"></i>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-300">Live Flight Telemetry & Oscilloscope</span>
+            <span id="telTetherBadge" class="text-[11px] font-mono-num text-purple-300 bg-purple-950/70 border border-purple-700/40 px-2 py-0.5 rounded">Line: 85.0 m / 300 m</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button id="btnMinTelemetry" class="w-6 h-6 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition" title="Minimize / Expand Telemetry Dock">
+              <i class="ph-bold ph-minus text-xs"></i>
+            </button>
+            <button id="btnCloseTelemetry" class="w-6 h-6 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 flex items-center justify-center transition" title="Close Telemetry Dock">
+              <i class="ph-bold ph-x text-xs"></i>
+            </button>
+          </div>
+        </div>
+        <div id="telemetryDockBody" class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5 items-stretch">
+          <!-- Altitude -->
+          <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+            <div class="flex items-center justify-between text-[11px] text-slate-400">
+              <span>Altitude (Y)</span>
+              <i class="ph-bold ph-arrows-out-line-vertical text-sky-400"></i>
+            </div>
+            <div class="text-base sm:text-lg font-bold font-mono-num text-white mt-0.5" id="telAltitude">0.0 m</div>
+            <div class="text-[10px] font-mono-num text-slate-400" id="telDownwind">Downwind X: 0.0 m</div>
+          </div>
+
+          <!-- Elevation Angle -->
+          <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+            <div class="flex items-center justify-between text-[11px] text-slate-400">
+              <span>Line Elevation (θ)</span>
+              <i class="ph-bold ph-angle text-indigo-400"></i>
+            </div>
+            <div class="text-base sm:text-lg font-bold font-mono-num text-white mt-0.5" id="telElevation">0.0°</div>
+            <div class="text-[10px] font-mono-num text-slate-400" id="telEffectiveAoA">Eff. AoA: 12.0°</div>
+          </div>
+
+          <!-- Aerodynamic Lift -->
+          <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+            <div class="flex items-center justify-between text-[11px] text-slate-400">
+              <span>Lift Force (F<sub>L</sub>)</span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            </div>
+            <div class="text-base sm:text-lg font-bold font-mono-num text-emerald-400 mt-0.5" id="telLift">0.00 N</div>
+            <div class="text-[10px] font-mono-num text-slate-400" id="telCL">C_L: 0.85</div>
+          </div>
+
+          <!-- Aerodynamic Drag -->
+          <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+            <div class="flex items-center justify-between text-[11px] text-slate-400">
+              <span>Drag Force (F<sub>D</sub>)</span>
+              <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+            </div>
+            <div class="text-base sm:text-lg font-bold font-mono-num text-rose-400 mt-0.5" id="telDrag">0.00 N</div>
+            <div class="text-[10px] font-mono-num text-slate-400" id="telCD">C_D: 0.18</div>
+          </div>
+
+          <!-- Line Tension -->
+          <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+            <div class="flex items-center justify-between text-[11px] text-slate-400">
+              <span>Line Tension (|T|)</span>
+              <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+            </div>
+            <div class="text-base sm:text-lg font-bold font-mono-num text-purple-300 mt-0.5" id="telTension">0.00 N</div>
+            <div class="text-[10px] font-mono-num text-slate-400" id="telTensionKg">Pull: 0.00 kgf</div>
+          </div>
+
+          <!-- Lift to Drag Ratio -->
+          <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+            <div class="flex items-center justify-between text-[11px] text-slate-400">
+              <span>L / D Efficiency</span>
+              <i class="ph-bold ph-gauge text-amber-400"></i>
+            </div>
+            <div class="text-base sm:text-lg font-bold font-mono-num text-amber-300 mt-0.5" id="telLD">0.00</div>
+            <div class="text-[10px] font-mono-num text-slate-400" id="telGravity">Weight: 0.00 N</div>
+          </div>
+
+          <!-- Live Telemetry Oscilloscope (Spans 2 columns) -->
+          <div class="col-span-2 bg-slate-950/90 border border-slate-800/80 rounded-xl p-2 flex flex-col justify-between">
+            <div class="flex items-center justify-between text-[10px] px-1">
+              <span class="font-semibold uppercase tracking-wider text-slate-400">Real-Time Telemetry History</span>
+              <div class="flex items-center gap-2 font-mono-num">
+                <span class="text-sky-400">― Alt</span>
+                <span class="text-emerald-400">― Lift</span>
+                <span class="text-purple-400">― Tension</span>
+              </div>
+            </div>
+            <canvas id="chartCanvas" width="320" height="48" class="w-full h-11 mt-1 rounded"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside id="controlsSidebarPanel" class="lg:col-span-4 xl:col-span-3 border-t lg:border-t-0 lg:border-l border-slate-800/90 bg-slate-900/95 p-4 flex flex-col justify-between overflow-y-auto space-y-4">
+      <div class="space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+          <div class="flex items-center gap-2">
+            <i class="ph-fill ph-sliders-horizontal text-sky-400 text-lg"></i>
+            <h2 class="font-bold text-sm uppercase tracking-wider text-slate-200">Flight Parameters</h2>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-slate-400 font-mono-num mr-1">SI Units</span>
+            <button id="btnMinControls" class="w-6 h-6 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition" title="Collapse / Expand Parameter Sliders">
+              <i class="ph-bold ph-minus text-xs"></i>
+            </button>
+            <button id="btnCloseControls" class="w-6 h-6 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 flex items-center justify-center transition" title="Close Flight Parameters Panel (Canvas expands to full width)">
+              <i class="ph-bold ph-x text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="controlsSidebarBody" class="space-y-4">
+        <!-- 1. Wind Speed Control -->
+        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <label for="sliderWindSpeed" class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+              <i class="ph-bold ph-wind text-sky-400"></i>
+              <span>Wind Speed (V<sub>w</sub>)</span>
+            </label>
+            <div class="text-xs font-mono-num font-bold text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded">
+              <span id="valWindSpeed">8.5</span> m/s
+              <span class="text-[10px] text-slate-400 font-normal">(<span id="valWindKnots">16.5</span> kt)</span>
+            </div>
+          </div>
+          <input type="range" id="sliderWindSpeed" min="0" max="24" step="0.1" value="8.5">
+          <div class="flex justify-between text-[10px] text-slate-500 font-mono-num">
+            <span>0 m/s (Calm)</span>
+            <span>8 m/s (Fresh)</span>
+            <span>16 m/s</span>
+            <span>24 m/s (Gale)</span>
+          </div>
+        </div>
+
+        <!-- 2. Wind Turbulence Control -->
+        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <label for="sliderTurbulence" class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+              <i class="ph-bold ph-wave-sine text-cyan-400"></i>
+              <span>Wind Turbulence (σ<sub>w</sub>)</span>
+            </label>
+            <span class="text-xs font-mono-num font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded">
+              <span id="valTurbulence">18</span>%
+            </span>
+          </div>
+          <input type="range" id="sliderTurbulence" min="0" max="100" step="1" value="18">
+          <div class="flex justify-between text-[10px] text-slate-500 font-mono-num">
+            <span>0% (Laminar)</span>
+            <span>35% (Choppy)</span>
+            <span>70%</span>
+            <span>100% (Severe)</span>
+          </div>
+        </div>
+
+        <!-- 3. Extended Line Length & Winch Payout Control (15m to 300m) -->
+        <div class="bg-slate-950/60 border border-purple-500/30 rounded-xl p-3 space-y-2.5 shadow-inner">
+          <div class="flex items-center justify-between">
+            <label for="sliderLineLength" class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+              <i class="ph-bold ph-line-segment text-purple-400"></i>
+              <span>Line Length (L)</span>
+            </label>
+            <div class="flex items-center gap-1">
+              <button id="btnReelIn10" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-mono-num transition active:scale-95" title="Reel In 10 meters (-10m)">-10m</button>
+              <span class="text-xs font-mono-num font-bold text-purple-300 bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 rounded">
+                <span id="valLineLength">85</span> m
+              </span>
+              <button id="btnLetOut10" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-mono-num transition active:scale-95" title="Let Out 10 meters (+10m)">+10m</button>
+            </div>
+          </div>
+          <input type="range" id="sliderLineLength" min="15" max="300" step="1" value="85">
+          <div class="flex justify-between text-[10px] text-slate-500 font-mono-num">
+            <span>15 m</span>
+            <span>85 m (Med)</span>
+            <span>180 m (High)</span>
+            <span>300 m (Max)</span>
+          </div>
+          <div class="pt-1 border-t border-slate-800/80 flex flex-col gap-1.5 text-[11px] text-slate-300">
+            <label class="flex items-center justify-between cursor-pointer select-none">
+              <span class="flex items-center gap-1.5">
+                <input type="checkbox" id="chkAutoExtendDrag" checked class="accent-purple-400 rounded">
+                <span>Auto-Extend Line on Drag (up to 300m)</span>
+              </span>
+              <span class="text-[10px] font-mono-num text-purple-300">Active</span>
+            </label>
+            <label class="flex items-center justify-between cursor-pointer select-none">
+              <span class="flex items-center gap-1.5">
+                <input type="checkbox" id="chkWheelReelsLine" checked class="accent-sky-400 rounded">
+                <span>Mouse Wheel Reels Line In/Out</span>
+              </span>
+              <span class="text-[10px] font-mono-num text-slate-400">±5m/step</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 4. Angle of Attack (Bridle Trim) Control -->
+        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <label for="sliderAoA" class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+              <i class="ph-bold ph-compass text-emerald-400"></i>
+              <span>Angle of Attack (α<sub>trim</sub>)</span>
+            </label>
+            <span class="text-xs font-mono-num font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+              <span id="valAoA">14.0</span>°
+            </span>
+          </div>
+          <input type="range" id="sliderAoA" min="2" max="42" step="0.5" value="14">
+          <div class="flex justify-between text-[10px] text-slate-500 font-mono-num">
+            <span>2° (Low Lift)</span>
+            <span>14° (Optimal)</span>
+            <span class="text-amber-400/90">22° (Stall)</span>
+            <span class="text-rose-400/90">42° (Deep Stall)</span>
+          </div>
+        </div>
+
+        <!-- 5. Kite Mass Control -->
+        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <label for="sliderMass" class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+              <i class="ph-bold ph-scales text-amber-400"></i>
+              <span>Kite Mass (m<sub>kite</sub>)</span>
+            </label>
+            <div class="text-xs font-mono-num font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+              <span id="valMass">280</span> g
+              <span class="text-[10px] text-slate-400 font-normal">(+<span id="valTailMass">48</span>g tail)</span>
+            </div>
+          </div>
+          <input type="range" id="sliderMass" min="50" max="1500" step="10" value="280">
+          <div class="flex justify-between text-[10px] text-slate-500 font-mono-num">
+            <span>50g (Carbon)</span>
+            <span>400g (Sport)</span>
+            <span>900g</span>
+            <span>1500g (Heavy)</span>
+          </div>
+        </div>
+
+        <!-- 6. Tail Length Control -->
+        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <label for="sliderTail" class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+              <i class="ph-bold ph-scribble-loop text-pink-400"></i>
+              <span>Tail Length (L<sub>tail</sub>)</span>
+            </label>
+            <span class="text-xs font-mono-num font-bold text-pink-300 bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded">
+              <span id="valTail">4.0</span> m
+            </span>
+          </div>
+          <input type="range" id="sliderTail" min="0" max="15" step="0.5" value="4.0">
+          <div class="flex justify-between text-[10px] text-slate-500 font-mono-num">
+            <span>0 m (Unstable)</span>
+            <span>4 m (Balanced)</span>
+            <span>9 m</span>
+            <span>15 m (High Drag)</span>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <!-- Aerodynamics Physics Reference Card -->
+      <div id="controlsFooterNote" class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-3 text-[11px] text-slate-400 space-y-1.5">
+        <div class="font-semibold text-slate-200 flex items-center gap-1.5">
+          <i class="ph-fill ph-info text-sky-400"></i>
+          <span>Aerodynamic Equilibrium Note</span>
+        </div>
+        <p class="leading-relaxed">
+          In steady flight, tether angle <span class="text-slate-200 font-mono-num">θ = atan((F<sub>L</sub> − F<sub>g</sub>) / F<sub>D</sub>)</span>. Pulling the kite far downwind or holding <b>Pull / Tug</b> spikes apparent wind speed <span class="text-sky-300 font-mono-num">V<sub>app</sub></span>, generating rapid lift climbs up to <b>300m</b> line length.
+        </p>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      // --- Physical & Aerodynamic Constants ---
+      const G = 9.81;                // Gravitational acceleration (m/s^2)
+      const RHO = 1.225;             // Air density at sea level (kg/m^3)
+      const KITE_AREA = 0.68;        // Wing planform area (m^2)
+      const ASPECT_RATIO = 3.2;      // Effective wing aspect ratio
+      const OSWALD_EFF = 0.82;       // Oswald span efficiency factor
+      const TAIL_MASS_PER_M = 0.012; // 12 grams per meter of tail ribbon
+      const TAIL_DRAG_PER_M = 0.022; // Drag coefficient contribution per meter of tail
+      const MIN_LINE_LENGTH = 15;    // Minimum tether length (m)
+      const MAX_LINE_LENGTH = 300;   // Maximum extended tether length (m)
+
+      // --- User-Controlled Simulation Parameters ---
+      const params = {
+        windSpeed: 8.5,      // m/s base horizontal wind speed at reference 10m altitude
+        turbulence: 18,      // % turbulence intensity (0 - 100)
+        lineLength: 85,      // meters target tether length (extended up to 300m)
+        trimAoA: 14.0,       // degrees bridle angle of attack trim
+        kiteMassG: 280,      // grams dry kite mass
+        tailLength: 4.0,     // meters stabilizing tail length
+        autoExtendOnDrag: true, // Automatically increase lineLength up to 300m when user drags kite outward
+        wheelReelsLine: true    // Mouse wheel dynamically pays out / reels in line
+      };
+
+      // --- Vector Visibility Toggles ---
+      const showVectors = {
+        lift: true,
+        drag: true,
+        gravity: true,
+        tension: true,
+        apparentWind: false
+      };
+
+      // --- Dynamic Kite Physics State ---
+      const kite = {
+        x: 48.5,             // Downwind distance from anchor (m)
+        y: 69.8,             // Altitude above anchor (m)
+        vx: 0.0,             // Horizontal velocity (m/s)
+        vy: 0.0,             // Vertical velocity (m/s)
+        currentLineLen: 85,  // Actual paid-out line length (smoothly tracks params.lineLength up to 300m)
+        pitchAngle: 14.0 * Math.PI / 180, // Current pitch orientation (rad)
+        pitchVel: 0.0,       // Angular velocity (rad/s)
+        effectiveAoADeg: 14.0,
+        // Instantaneous computed forces (Newtons)
+        liftX: 0, liftY: 0, liftMag: 0,
+        dragX: 0, dragY: 0, dragMag: 0,
+        gravY: 0, gravMag: 0,
+        tensX: 0, tensY: 0, tensMag: 0,
+        vAppX: 8.5, vAppY: 0, vAppMag: 8.5,
+        cL: 0.8, cD: 0.15,
+        isStalled: false,
+        isSlack: false,
+        isDragging: false
+      };
+
+      // --- Special Interactive Modifiers (Gusts & Line Tugs / Winch Pull) ---
+      let gustTimer = 0;         // Seconds remaining of temporary wind gust
+      let tugTimer = 0;          // Seconds remaining of temporary line tug impulse
+      let isWinchPulling = false;// True while user holds down "Hold to Pull / Tug" or Spacebar
+      let simTime = 0;           // Elapsed physics time (s)
+      let isPaused = false;
+
+      // --- Camera & Viewport State ---
+      const camera = {
+        scale: 6.5,            // Pixels per meter
+        targetScale: 6.5,
+        manualZoomMult: 1.0,   // User adjustable zoom multiplier (0.35x to 1.5x)
+        autoFit: true,
+        offsetX: 90,           // Anchor screen X offset (px from left)
+        offsetY: 70            // Anchor screen Y offset (px from bottom)
+      };
+
+      // --- Multi-Segment Tail Ribbon (18 nodes) ---
+      const NUM_TAIL_NODES = 18;
+      const tailNodes = [];
+      function initTailNodes() {
+        tailNodes.length = 0;
+        const segLen = Math.max(0.05, params.tailLength / (NUM_TAIL_NODES - 1));
+        for (let i = 0; i < NUM_TAIL_NODES; i++) {
+          tailNodes.push({
+            x: kite.x + i * segLen,
+            y: kite.y - i * segLen * 0.25,
+            vx: 0,
+            vy: 0
+          });
+        }
+      }
+
+      // --- Wind Streamline Particles ---
+      const NUM_WIND_PARTICLES = 95;
+      const windParticles = [];
+      function initWindParticles() {
+        windParticles.length = 0;
+        for (let i = 0; i < NUM_WIND_PARTICLES; i++) {
+          windParticles.push({
+            x: Math.random() * 320 - 20,
+            y: Math.random() * 260 + 0.5,
+            length: 2.5 + Math.random() * 4.5,
+            alpha: 0.12 + Math.random() * 0.32,
+            speedMult: 0.85 + Math.random() * 0.3
+          });
+        }
+      }
+
+      // --- Flight Trail History (Breadcrumb path) ---
+      const trailHistory = [];
+      const MAX_TRAIL_POINTS = 90;
+
+      // --- Telemetry Strip Chart History ---
+      const chartHistory = {
+        alt: [],
+        lift: [],
+        tension: [],
+        maxSamples: 140
+      };
+
+      /**
+       * Computes Lift Coefficient (C_L) and Drag Coefficient (C_D) as a function of
+       * effective Angle of Attack (alphaRad) and tail length.
+       * Includes realistic stall behavior above ~19 degrees.
+       */
+      function computeAerodynamicCoefficients(alphaRad, tailLen) {
+        const alphaDeg = alphaRad * (180 / Math.PI);
+
+        // Pre-stall linear lift slope with finite aspect ratio correction
+        const liftSlope = (2 * Math.PI * ASPECT_RATIO) / (ASPECT_RATIO + 2); // ~3.87 / rad
+        // Zero-lift angle of attack for cambered kite sail (~ -2 deg)
+        const alpha0 = -2.0 * (Math.PI / 180);
+
+        // Smooth blending function into post-stall regime around 19.5 degrees
+        const stallAngleDeg = 19.5;
+        const stallTransitionWidth = 4.5;
+        const stallFactor = 1.0 / (1.0 + Math.exp(-(alphaDeg - stallAngleDeg) / stallTransitionWidth));
+
+        // Linear attached-flow C_L
+        const cL_attached = liftSlope * (alphaRad - alpha0);
+        // Post-stall flat-plate C_L = 1.15 * sin(2 * alpha)
+        const cL_stalled = 1.15 * Math.sin(2 * alphaRad);
+
+        const cL = (1.0 - stallFactor) * cL_attached + stallFactor * cL_stalled;
+
+        // Parasitic + Induced + Post-stall pressure drag + Tail ribbon drag
+        const cD0 = 0.075;
+        const cD_induced = (cL * cL) / (Math.PI * ASPECT_RATIO * OSWALD_EFF);
+        const cD_stall = stallFactor * 1.65 * Math.pow(Math.sin(Math.max(0, alphaRad)), 2);
+        const cD_tail = tailLen * TAIL_DRAG_PER_M;
+
+        const cD = cD0 + cD_induced + cD_stall + cD_tail;
+        const isStalled = alphaDeg > 20.5;
+
+        return { cL, cD, isStalled };
+      }
+
+      /**
+       * Computes instantaneous local wind velocity vector (vx, vy) at position (x, y) and time t.
+       * Includes slight altitude boundary-layer gradient, turbulence waves, and active wind gusts.
+       */
+      function getWindAt(x, y, t) {
+        const safeY = Math.max(1.0, y);
+        // Subtle wind gradient with altitude (power law exponent 0.08)
+        const shearFactor = Math.pow(safeY / 15.0, 0.08);
+        let baseVx = params.windSpeed * shearFactor;
+
+        // Add temporary gust boost if user clicked "Wind Gust"
+        if (gustTimer > 0) {
+          const gustEnvelope = Math.sin((gustTimer / 3.0) * Math.PI);
+          baseVx += (5.5 + params.windSpeed * 0.35) * gustEnvelope;
+        }
+
+        // Continuous multi-frequency deterministic turbulence field (Perlin-style sum of sines)
+        const turbRatio = params.turbulence / 100.0;
+        const turbAmp = turbRatio * Math.max(1.8, baseVx * 0.48);
+
+        const wave1 = Math.sin(t * 2.1 - x * 0.14 + y * 0.09);
+        const wave2 = Math.cos(t * 3.7 - x * 0.27 - y * 0.18) * 0.6;
+        const wave3 = Math.sin(t * 6.3 - x * 0.45 + y * 0.31) * 0.35;
+
+        const dvx = turbAmp * (wave1 + wave2 * 0.7);
+        const dvy = turbAmp * 0.65 * (wave2 + wave3);
+
+        return {
+          vx: Math.max(0, baseVx + dvx),
+          vy: dvy
+        };
+      }
+
+      /**
+       * Advances the kite and tail physics by dt seconds using sub-stepped semi-implicit Euler integration.
+       */
+      function stepPhysics(dt) {
+        if (isPaused) return;
+
+        const clampedDt = Math.min(dt, 0.033);
+        const SUBSTEPS = 8;
+        const subDt = clampedDt / SUBSTEPS;
+
+        if (gustTimer > 0) gustTimer = Math.max(0, gustTimer - clampedDt);
+        if (tugTimer > 0) tugTimer = Math.max(0, tugTimer - clampedDt);
+
+        for (let step = 0; step < SUBSTEPS; step++) {
+          simTime += subDt;
+
+          // If user is actively holding "Hold to Pull / Tug", continuously reel in slightly & inject strong pull
+          if (isWinchPulling && !kite.isDragging) {
+            params.lineLength = Math.max(MIN_LINE_LENGTH, params.lineLength - 14.0 * subDt);
+          }
+
+          // Smoothly reel line in/out toward target slider length (plus temporary tug pull)
+          const tugShortening = tugTimer > 0 ? 5.5 * Math.sin((tugTimer / 0.85) * Math.PI) : 0;
+          const desiredLine = Math.max(MIN_LINE_LENGTH, Math.min(MAX_LINE_LENGTH, params.lineLength - tugShortening));
+          const lineDiff = desiredLine - kite.currentLineLen;
+          const maxReelRate = 65.0 * subDt;
+          if (Math.abs(lineDiff) <= maxReelRate) {
+            kite.currentLineLen = desiredLine;
+          } else {
+            kite.currentLineLen += Math.sign(lineDiff) * maxReelRate;
+          }
+
+          // Total mass (kite frame + tail ribbon)
+          const totalMassKg = (params.kiteMassG / 1000.0) + (params.tailLength * TAIL_MASS_PER_M);
+
+          // Local wind at kite position
+          const wind = getWindAt(kite.x, kite.y, simTime);
+
+          // Apparent wind velocity relative to kite: V_app = V_wind - V_kite
+          // Add extra apparent wind boost during active Winch Pull / Line Tug so kite climbs vigorously
+          const winchPullBoost = (isWinchPulling ? 4.8 : 0) + (tugTimer > 0 ? 3.5 * Math.sin((tugTimer / 0.85) * Math.PI) : 0);
+          kite.vAppX = wind.vx + winchPullBoost - kite.vx;
+          kite.vAppY = wind.vy - kite.vy;
+          kite.vAppMag = Math.hypot(kite.vAppX, kite.vAppY);
+
+          // Apparent wind angle relative to horizontal
+          const apparentWindAngle = Math.atan2(kite.vAppY, Math.max(0.001, kite.vAppX));
+
+          // Pitch dynamics: bridle trim sets target AoA, while turbulence perturbs pitch
+          // and tail length provides strong aerodynamic rotational damping!
+          const targetTrimRad = params.trimAoA * (Math.PI / 180);
+          const turbPitchTorque = (params.turbulence / 100) *
+            Math.sin(simTime * 5.2 + kite.x * 0.2) * (1.8 / (1.0 + params.tailLength * 0.45));
+
+          const pitchStiffness = 26.0 + params.tailLength * 3.5;
+          const pitchDamping = 4.2 + params.tailLength * 1.65;
+          const desiredPitch = targetTrimRad - apparentWindAngle * 0.65;
+
+          const pitchAccel = pitchStiffness * (desiredPitch - kite.pitchAngle) -
+                             pitchDamping * kite.pitchVel +
+                             turbPitchTorque;
+          kite.pitchVel += pitchAccel * subDt;
+          kite.pitchAngle += kite.pitchVel * subDt;
+
+          // Effective Angle of Attack between kite chord and apparent wind vector
+          const effAoARad = Math.max(-0.15, Math.min(0.85, kite.pitchAngle + apparentWindAngle));
+          kite.effectiveAoADeg = effAoARad * (180 / Math.PI);
+
+          // Compute Lift & Drag coefficients
+          const aero = computeAerodynamicCoefficients(effAoARad, params.tailLength);
+          kite.cL = aero.cL;
+          kite.cD = aero.cD;
+          kite.isStalled = aero.isStalled;
+
+          // Dynamic pressure q = 0.5 * rho * |V_app|^2
+          const q = 0.5 * RHO * kite.vAppMag * kite.vAppMag;
+          kite.liftMag = q * KITE_AREA * kite.cL;
+          kite.dragMag = q * KITE_AREA * kite.cD;
+
+          // Unit vectors along and perpendicular to apparent wind
+          let ux = 1.0, uy = 0.0;
+          if (kite.vAppMag > 0.001) {
+            ux = kite.vAppX / kite.vAppMag;
+            uy = kite.vAppY / kite.vAppMag;
+          }
+          // Drag acts parallel to apparent wind (ux, uy)
+          kite.dragX = kite.dragMag * ux;
+          kite.dragY = kite.dragMag * uy;
+
+          // Lift acts perpendicular to apparent wind (-uy, ux) (upward when wind blows +x)
+          kite.liftX = -kite.liftMag * uy;
+          kite.liftY = kite.liftMag * ux;
+
+          // Gravity force
+          kite.gravMag = totalMassKg * G;
+          kite.gravY = -kite.gravMag;
+
+          if (kite.isDragging) {
+            // While user drags the kite with mouse/touch, zero velocity and compute static line tension preview
+            kite.vx = 0;
+            kite.vy = 0;
+            const dist = Math.hypot(kite.x, kite.y);
+            if (dist > 0.1) {
+              const rx = kite.x / dist;
+              const ry = kite.y / dist;
+              const radialForce = (kite.liftX + kite.dragX) * rx + (kite.liftY + kite.dragY + kite.gravY) * ry;
+              kite.tensMag = Math.max(0, radialForce);
+              kite.tensX = -kite.tensMag * rx;
+              kite.tensY = -kite.tensMag * ry;
+            }
+          } else {
+            // Unconstrained external force sum (Aerodynamic + Gravity)
+            const extFx = kite.liftX + kite.dragX;
+            const extFy = kite.liftY + kite.dragY + kite.gravY;
+
+            // Integrate unconstrained velocity
+            kite.vx += (extFx / totalMassKg) * subDt;
+            kite.vy += (extFy / totalMassKg) * subDt;
+
+            // Subtle air rotational/positional damping for numerical stability
+            kite.vx *= (1.0 - 0.12 * subDt);
+            kite.vy *= (1.0 - 0.12 * subDt);
+
+            // Advance position
+            kite.x += kite.vx * subDt;
+            kite.y += kite.vy * subDt;
+
+            // Ground collision check (keep kite above grassy ground y >= 0.4m)
+            if (kite.y < 0.4) {
+              kite.y = 0.4;
+              if (kite.vy < 0) kite.vy = 0;
+              kite.vx *= 0.92; // Ground friction
+            }
+
+            // Keep kite slightly downwind of anchor so it doesn't wrap behind operator
+            if (kite.x < 0.5) {
+              kite.x = 0.5;
+              if (kite.vx < 0) kite.vx = 0;
+            }
+
+            // Tether Constraint Solver (Inextensible taut line when r >= L)
+            const r = Math.hypot(kite.x, kite.y);
+            if (r >= kite.currentLineLen && r > 0.001) {
+              kite.isSlack = false;
+              const rx = kite.x / r;
+              const ry = kite.y / r;
+
+              // Outward radial component of external forces + centripetal term m * v_tangent^2 / r
+              const vRadial = kite.vx * rx + kite.vy * ry;
+              const vTangential = -kite.vx * ry + kite.vy * rx;
+              const outwardExtForce = extFx * rx + extFy * ry;
+              const centripetalForce = totalMassKg * (vTangential * vTangential) / kite.currentLineLen;
+
+              if (outwardExtForce + centripetalForce > 0 || vRadial > 0) {
+                // Project position onto tether radius
+                kite.x = rx * kite.currentLineLen;
+                kite.y = ry * kite.currentLineLen;
+
+                // Remove outward radial velocity (plus reel-in velocity impulse)
+                if (vRadial > 0) {
+                  kite.vx -= vRadial * rx;
+                  kite.vy -= vRadial * ry;
+                }
+
+                // Exact physical tension magnitude in the taut line
+                kite.tensMag = Math.max(0, outwardExtForce + centripetalForce);
+                kite.tensX = -kite.tensMag * rx;
+                kite.tensY = -kite.tensMag * ry;
+              } else {
+                kite.isSlack = true;
+                kite.tensMag = 0;
+                kite.tensX = 0;
+                kite.tensY = 0;
+              }
+            } else {
+              // Line is slack (r < L)
+              kite.isSlack = true;
+              kite.tensMag = 0;
+              kite.tensX = 0;
+              kite.tensY = 0;
+            }
+          }
+
+          // Update Multi-Segment Tail Ribbon Physics
+          updateTailPhysics(subDt, wind);
+        }
+
+        // Update wind particles
+        updateWindParticles(clampedDt);
+
+        // Record breadcrumb trail and chart history periodically
+        recordTelemetrySample();
+      }
+
+      function updateTailPhysics(subDt, wind) {
+        if (tailNodes.length === 0) initTailNodes();
+
+        // Anchor node 0 to the bottom keel of the kite
+        const tailAttachOffset = 1.1; // Visual scale offset in meters
+        tailNodes[0].x = kite.x + Math.cos(kite.pitchAngle) * tailAttachOffset;
+        tailNodes[0].y = kite.y - Math.sin(kite.pitchAngle) * tailAttachOffset;
+
+        const targetSegLen = Math.max(0.02, (params.tailLength * 0.55) / (NUM_TAIL_NODES - 1));
+
+        for (let i = 1; i < NUM_TAIL_NODES; i++) {
+          const node = tailNodes[i];
+          const prev = tailNodes[i - 1];
+
+          // Flutter wave induced by wind and tail vortex shedding
+          const flutterFreq = 7.0 + params.windSpeed * 0.85;
+          const flutterAmp = (0.4 + (params.turbulence / 100) * 1.2) * (i / NUM_TAIL_NODES);
+          const flutterVy = Math.sin(simTime * flutterFreq - i * 0.75) * flutterAmp;
+
+          // Aerodynamic drag pulling tail node toward local wind + gravity
+          const targetVx = wind.vx * 0.85;
+          const targetVy = wind.vy - 1.2 + flutterVy;
+
+          node.x += (kite.vx * 0.4 + targetVx * 0.6) * subDt;
+          node.y += (kite.vy * 0.4 + targetVy * 0.6) * subDt;
+
+          // Distance constraint to previous tail segment
+          const dx = node.x - prev.x;
+          const dy = node.y - prev.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 0.0001) {
+            const corr = targetSegLen / dist;
+            node.x = prev.x + dx * corr;
+            node.y = prev.y + dy * corr;
+          }
+        }
+      }
+
+      function updateWindParticles(dt) {
+        const maxWorldX = (simCanvas.width - camera.offsetX) / camera.scale + 15;
+        const maxWorldY = (simCanvas.height - camera.offsetY) / camera.scale + 15;
+
+        for (let i = 0; i < windParticles.length; i++) {
+          const p = windParticles[i];
+          const w = getWindAt(p.x, p.y, simTime);
+          p.x += w.vx * p.speedMult * dt;
+          p.y += w.vy * p.speedMult * dt;
+
+          if (p.x > maxWorldX) {
+            p.x = -12;
+            p.y = Math.random() * Math.max(40, maxWorldY);
+          }
+          if (p.y < 0.5) p.y = maxWorldY * 0.8;
+          if (p.y > maxWorldY) p.y = 2.0 + Math.random() * 20;
+        }
+      }
+
+      let sampleCounter = 0;
+      function recordTelemetrySample() {
+        sampleCounter++;
+        if (sampleCounter % 3 === 0) {
+          trailHistory.push({ x: kite.x, y: kite.y });
+          if (trailHistory.length > MAX_TRAIL_POINTS) trailHistory.shift();
+
+          chartHistory.alt.push(kite.y);
+          chartHistory.lift.push(kite.liftMag);
+          chartHistory.tension.push(kite.tensMag);
+
+          if (chartHistory.alt.length > chartHistory.maxSamples) {
+            chartHistory.alt.shift();
+            chartHistory.lift.shift();
+            chartHistory.tension.shift();
+          }
+        }
+      }
+
+      const simCanvas = document.getElementById("simCanvas");
+      const ctx = simCanvas.getContext("2d");
+      const fbdCanvas = document.getElementById("fbdCanvas");
+      const fbdCtx = fbdCanvas.getContext("2d");
+      const chartCanvas = document.getElementById("chartCanvas");
+      const chartCtx = chartCanvas.getContext("2d");
+
+      function resizeCanvases() {
+        const container = document.getElementById("canvasContainer");
+        const rect = container.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+
+        simCanvas.width = rect.width * dpr;
+        simCanvas.height = rect.height * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        camera.offsetX = Math.max(68, rect.width * 0.11);
+        camera.offsetY = Math.max(54, rect.height * 0.12);
+      }
+      window.addEventListener("resize", resizeCanvases);
+
+      // Convert World (meters) to Screen (CSS pixels)
+      function worldToScreen(wx, wy) {
+        const cssHeight = simCanvas.height / (window.devicePixelRatio || 1);
+        return {
+          x: camera.offsetX + wx * camera.scale,
+          y: cssHeight - camera.offsetY - wy * camera.scale
+        };
+      }
+
+      // Convert Screen (CSS pixels) to World (meters)
+      function screenToWorld(sx, sy) {
+        const cssHeight = simCanvas.height / (window.devicePixelRatio || 1);
+        return {
+          x: (sx - camera.offsetX) / camera.scale,
+          y: (cssHeight - camera.offsetY - sy) / camera.scale
+        };
+      }
+
+      /**
+       * Draws a crisp arrow with a filled arrowhead and optional pill label.
+       */
+      function drawVectorArrow(context, x1, y1, x2, y2, color, label, lineWidth = 2.5) {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const len = Math.hypot(dx, dy);
+        if (len < 4) return;
+
+        const angle = Math.atan2(dy, dx);
+        const headLen = Math.min(11, Math.max(7, len * 0.25));
+
+        context.save();
+        context.strokeStyle = color;
+        context.fillStyle = color;
+        context.lineWidth = lineWidth;
+        context.lineCap = "round";
+
+        // Shaft
+        context.beginPath();
+        context.moveTo(x1, y1);
+        context.lineTo(x2 - Math.cos(angle) * (headLen * 0.5), y2 - Math.sin(angle) * (headLen * 0.5));
+        context.stroke();
+
+        // Arrowhead
+        context.beginPath();
+        context.moveTo(x2, y2);
+        context.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+        context.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+        context.closePath();
+        context.fill();
+
+        // Optional text badge
+        if (label) {
+          const labelX = x2 + Math.cos(angle) * 14;
+          const labelY = y2 + Math.sin(angle) * 14;
+          context.font = "600 11px 'JetBrains Mono', monospace";
+          const textWidth = context.measureText(label).width;
+          context.fillStyle = "rgba(15, 23, 42, 0.85)";
+          context.beginPath();
+          context.roundRect(labelX - textWidth / 2 - 5, labelY - 8, textWidth + 10, 16, 4);
+          context.fill();
+          context.strokeStyle = color;
+          context.lineWidth = 1;
+          context.stroke();
+
+          context.fillStyle = color;
+          context.textAlign = "center";
+          context.textBaseline = "middle";
+          context.fillText(label, labelX, labelY);
+        }
+        context.restore();
+      }
+
+      function renderMainScene() {
+        const dpr = window.devicePixelRatio || 1;
+        const w = simCanvas.width / dpr;
+        const h = simCanvas.height / dpr;
+
+        // Smooth camera scaling so up to 300m tether and kite remain clearly visible, modulated by manualZoomMult
+        const maxSpan = Math.max(30, params.lineLength * 1.18, kite.currentLineLen * 1.18, kite.x * 1.22, kite.y * 1.22);
+        const availW = Math.max(180, w - camera.offsetX - 50);
+        const availH = Math.max(180, h - camera.offsetY - 50);
+        const baseFitScale = Math.max(0.95, Math.min(16.0, Math.min(availW / maxSpan, availH / maxSpan)));
+
+        if (camera.autoFit) {
+          camera.targetScale = Math.max(0.45, Math.min(24.0, baseFitScale * camera.manualZoomMult));
+        }
+        camera.scale += (camera.targetScale - camera.scale) * 0.12;
+
+        // 1. Atmospheric Sky Gradient
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+        skyGrad.addColorStop(0, "#050b16");
+        skyGrad.addColorStop(0.55, "#0c192e");
+        skyGrad.addColorStop(1, "#132a46");
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, w, h);
+
+        // 2. Metric Altitude & Distance Grid (adapts cleanly up to 300m+)
+        const gridStep = camera.scale < 2.2 ? 50 : camera.scale < 4.5 ? 25 : camera.scale < 9 ? 10 : 5;
+        ctx.save();
+        ctx.lineWidth = 1;
+        ctx.font = "500 10px 'JetBrains Mono', monospace";
+
+        const maxWorldX = (w - camera.offsetX) / camera.scale;
+        const maxWorldY = (h - camera.offsetY) / camera.scale;
+
+        // Vertical grid lines (Downwind distance X)
+        for (let gx = 0; gx <= maxWorldX; gx += gridStep) {
+          const p = worldToScreen(gx, 0);
+          ctx.strokeStyle = gx === 0 ? "rgba(148, 163, 184, 0.3)" : "rgba(148, 163, 184, 0.07)";
+          ctx.beginPath();
+          ctx.moveTo(p.x, 0);
+          ctx.lineTo(p.x, h - camera.offsetY);
+          ctx.stroke();
+
+          ctx.fillStyle = "rgba(148, 163, 184, 0.55)";
+          ctx.textAlign = "center";
+          ctx.fillText(`${gx}m`, p.x, h - camera.offsetY + 15);
+        }
+
+        // Horizontal grid lines (Altitude Y)
+        for (let gy = 0; gy <= maxWorldY; gy += gridStep) {
+          const p = worldToScreen(0, gy);
+          ctx.strokeStyle = gy === 0 ? "rgba(56, 189, 248, 0.4)" : "rgba(148, 163, 184, 0.07)";
+          ctx.beginPath();
+          ctx.moveTo(camera.offsetX, p.y);
+          ctx.lineTo(w, p.y);
+          ctx.stroke();
+
+          if (gy > 0) {
+            ctx.fillStyle = "rgba(148, 163, 184, 0.55)";
+            ctx.textAlign = "right";
+            ctx.fillText(`${gy}m`, camera.offsetX - 8, p.y + 3);
+          }
+        }
+        ctx.restore();
+
+        // 3. Faint Tether Range Quarter-Circle Envelope
+        const anchorPos = worldToScreen(0, 0);
+        ctx.save();
+        ctx.strokeStyle = "rgba(168, 85, 247, 0.16)";
+        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(anchorPos.x, anchorPos.y, kite.currentLineLen * camera.scale, -Math.PI / 2, 0);
+        ctx.stroke();
+        ctx.restore();
+
+        // 4. Wind Streamline Particles
+        ctx.save();
+        for (let i = 0; i < windParticles.length; i++) {
+          const wp = windParticles[i];
+          const wVec = getWindAt(wp.x, wp.y, simTime);
+          const p1 = worldToScreen(wp.x, wp.y);
+          const streakScale = 0.18 + Math.min(0.4, wVec.vx * 0.02);
+          const p2 = worldToScreen(wp.x + wVec.vx * streakScale, wp.y + wVec.vy * streakScale);
+
+          ctx.strokeStyle = gustTimer > 0
+            ? `rgba(103, 232, 249, ${wp.alpha * 1.4})`
+            : `rgba(186, 230, 253, ${wp.alpha})`;
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // 5. Ground Terrain Strip & Anchor Winch Station
+        const groundY = h - camera.offsetY;
+        const groundGrad = ctx.createLinearGradient(0, groundY, 0, h);
+        groundGrad.addColorStop(0, "#0f292a");
+        groundGrad.addColorStop(1, "#071216");
+        ctx.fillStyle = groundGrad;
+        ctx.fillRect(0, groundY, w, camera.offsetY);
+
+        ctx.strokeStyle = "#10b981";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, groundY);
+        ctx.lineTo(w, groundY);
+        ctx.stroke();
+
+        // Draw Elevation Angle Arc (theta) at Anchor
+        const kitePos = worldToScreen(kite.x, kite.y);
+        const elevAngle = Math.atan2(kite.y, kite.x);
+        ctx.save();
+        ctx.fillStyle = "rgba(56, 189, 248, 0.12)";
+        ctx.strokeStyle = "rgba(56, 189, 248, 0.6)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(anchorPos.x, anchorPos.y);
+        ctx.arc(anchorPos.x, anchorPos.y, 38, -elevAngle, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = "#7dd3fc";
+        ctx.font = "600 11px 'JetBrains Mono', monospace";
+        ctx.fillText(`θ=${(elevAngle * 180 / Math.PI).toFixed(1)}°`, anchorPos.x + 44, anchorPos.y - 10);
+        ctx.restore();
+
+        // Draw Anchor Winch / Pilot Figure at (0,0)
+        ctx.save();
+        ctx.fillStyle = "#38bdf8";
+        ctx.strokeStyle = "#0f172a";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(anchorPos.x, anchorPos.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+
+        // 6. Breadcrumb Flight Trajectory Trail
+        if (trailHistory.length > 1) {
+          ctx.save();
+          ctx.beginPath();
+          for (let i = 0; i < trailHistory.length; i++) {
+            const pt = worldToScreen(trailHistory[i].x, trailHistory[i].y);
+            if (i === 0) ctx.moveTo(pt.x, pt.y);
+            else ctx.lineTo(pt.x, pt.y);
+          }
+          ctx.strokeStyle = "rgba(56, 189, 248, 0.25)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // 7. Tether Line (with subtle catenary sag when tension is low or slack)
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(anchorPos.x, anchorPos.y);
+        const midX = (anchorPos.x + kitePos.x) * 0.5;
+        const sagFactor = kite.isSlack ? 26 : Math.max(2, 18 / (1 + kite.tensMag * 0.35));
+        const midY = (anchorPos.y + kitePos.y) * 0.5 + sagFactor;
+        ctx.quadraticCurveTo(midX, midY, kitePos.x, kitePos.y);
+        ctx.strokeStyle = kite.isSlack ? "rgba(148, 163, 184, 0.55)" : "rgba(216, 180, 254, 0.9)";
+        ctx.lineWidth = kite.isSlack ? 1.5 : 2.2;
+        ctx.stroke();
+        ctx.restore();
+
+        // 8. Multi-Segment Stabilizing Tail Ribbon
+        if (params.tailLength > 0.1 && tailNodes.length > 1) {
+          ctx.save();
+          ctx.beginPath();
+          const firstPt = worldToScreen(tailNodes[0].x, tailNodes[0].y);
+          ctx.moveTo(firstPt.x, firstPt.y);
+          for (let i = 1; i < tailNodes.length; i++) {
+            const pt = worldToScreen(tailNodes[i].x, tailNodes[i].y);
+            ctx.lineTo(pt.x, pt.y);
+          }
+          ctx.strokeStyle = "#f472b6";
+          ctx.lineWidth = 3;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          ctx.stroke();
+
+          // Decorative tail bows along the ribbon
+          for (let i = 3; i < tailNodes.length; i += 4) {
+            const pt = worldToScreen(tailNodes[i].x, tailNodes[i].y);
+            ctx.fillStyle = "#fb7185";
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        // 9. Kite Body (Side-Profile Foil & Bridle + 2.5D Wing Facets)
+        ctx.save();
+        ctx.translate(kitePos.x, kitePos.y);
+        // On screen: +X is right, -Y is up.
+        // Kite nose points up-and-left into the wind at pitch angle `kite.pitchAngle` above horizontal:
+        // Nose vector in screen space: (-cos(pitch), -sin(pitch))
+        // Tail keel vector in screen space: (+cos(pitch), +sin(pitch))
+        const pitch = kite.pitchAngle;
+        const kitePixRadius = 22;
+        const noseX = -Math.cos(pitch) * kitePixRadius;
+        const noseY = -Math.sin(pitch) * kitePixRadius;
+        const tailEndX = Math.cos(pitch) * kitePixRadius;
+        const tailEndY = Math.sin(pitch) * kitePixRadius;
+
+        // Upper and lower wing tips in 2.5D perspective projection
+        const normalUpX = Math.sin(pitch) * 14;
+        const normalUpY = -Math.cos(pitch) * 14;
+
+        // Bridle lines meeting at tether attachment point (0, 0)
+        ctx.strokeStyle = "rgba(226, 232, 240, 0.7)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(noseX * 0.7, noseY * 0.7 + normalUpY * 0.5);
+        ctx.lineTo(0, 0);
+        ctx.lineTo(tailEndX * 0.6, tailEndY * 0.6 + normalUpY * 0.5);
+        ctx.stroke();
+
+        // Kite Sail Polygon (2.5D Diamond Wing)
+        const sailCenterX = normalUpX * 0.65;
+        const sailCenterY = normalUpY * 0.65;
+
+        // Far wing facet
+        ctx.fillStyle = kite.isStalled ? "#e11d48" : "#0284c7";
+        ctx.beginPath();
+        ctx.moveTo(noseX + sailCenterX, noseY + sailCenterY);
+        ctx.lineTo(sailCenterX + normalUpX * 0.9, sailCenterY + normalUpY * 0.9);
+        ctx.lineTo(tailEndX + sailCenterX, tailEndY + sailCenterY);
+        ctx.closePath();
+        ctx.fill();
+
+        // Near wing facet
+        ctx.fillStyle = kite.isStalled ? "#fb7185" : "#38bdf8";
+        ctx.beginPath();
+        ctx.moveTo(noseX + sailCenterX, noseY + sailCenterY);
+        ctx.lineTo(sailCenterX - normalUpX * 0.55, sailCenterY - normalUpY * 0.55);
+        ctx.lineTo(tailEndX + sailCenterX, tailEndY + sailCenterY);
+        ctx.closePath();
+        ctx.fill();
+
+        // Carbon spine & leading edge highlight
+        ctx.strokeStyle = "#f8fafc";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(noseX + sailCenterX, noseY + sailCenterY);
+        ctx.lineTo(tailEndX + sailCenterX, tailEndY + sailCenterY);
+        ctx.stroke();
+        ctx.restore();
+
+        // 10. Aerodynamic & Mechanical Force Vectors on the Kite
+        // Scale vectors using a responsive log-linear pixel scale so both gentle and gale forces are legible
+        const vecScale = (fMag) => {
+          if (fMag < 0.05) return 0;
+          return 16 + Math.min(115, Math.pow(fMag, 0.68) * 9.5);
+        };
+
+        // Apparent Wind Vector
+        if (showVectors.apparentWind && kite.vAppMag > 0.2) {
+          const vLen = Math.min(85, 22 + kite.vAppMag * 3.8);
+          const ux = kite.vAppX / kite.vAppMag;
+          const uy = kite.vAppY / kite.vAppMag;
+          drawVectorArrow(
+            ctx,
+            kitePos.x - ux * (vLen + 18),
+            kitePos.y + uy * (vLen + 18),
+            kitePos.x - ux * 18,
+            kitePos.y + uy * 18,
+            "#7dd3fc",
+            `V_app ${kite.vAppMag.toFixed(1)}m/s`,
+            2.0
+          );
+        }
+
+        // Lift Vector (F_L)
+        if (showVectors.lift && kite.liftMag > 0.05) {
+          const len = vecScale(kite.liftMag);
+          const lx = kite.liftX / kite.liftMag;
+          const ly = kite.liftY / kite.liftMag;
+          drawVectorArrow(
+            ctx,
+            kitePos.x,
+            kitePos.y,
+            kitePos.x + lx * len,
+            kitePos.y - ly * len,
+            "#34d399",
+            `F_L ${kite.liftMag.toFixed(1)}N`
+          );
+        }
+
+        // Drag Vector (F_D)
+        if (showVectors.drag && kite.dragMag > 0.05) {
+          const len = vecScale(kite.dragMag);
+          const dx = kite.dragX / kite.dragMag;
+          const dy = kite.dragY / kite.dragMag;
+          drawVectorArrow(
+            ctx,
+            kitePos.x,
+            kitePos.y,
+            kitePos.x + dx * len,
+            kitePos.y - dy * len,
+            "#fb7185",
+            `F_D ${kite.dragMag.toFixed(1)}N`
+          );
+        }
+
+        // Gravity Vector (F_g)
+        if (showVectors.gravity && kite.gravMag > 0.05) {
+          const len = vecScale(kite.gravMag);
+          drawVectorArrow(
+            ctx,
+            kitePos.x,
+            kitePos.y,
+            kitePos.x,
+            kitePos.y + len,
+            "#fbbf24",
+            `F_g ${kite.gravMag.toFixed(1)}N`
+          );
+        }
+
+        // Line Tension Vector (T)
+        if (showVectors.tension && kite.tensMag > 0.05) {
+          const len = vecScale(kite.tensMag);
+          const tx = kite.tensX / kite.tensMag;
+          const ty = kite.tensY / kite.tensMag;
+          drawVectorArrow(
+            ctx,
+            kitePos.x,
+            kitePos.y,
+            kitePos.x + tx * len,
+            kitePos.y - ty * len,
+            "#c084fc",
+            `T ${kite.tensMag.toFixed(1)}N`
+          );
+        }
+      }
+
+      function renderFreeBodyDiagram() {
+        const w = fbdCanvas.width;
+        const h = fbdCanvas.height;
+        const cx = w * 0.5;
+        const cy = h * 0.52;
+
+        fbdCtx.clearRect(0, 0, w, h);
+
+        // Subtle polar reference crosshair
+        fbdCtx.strokeStyle = "rgba(148, 163, 184, 0.15)";
+        fbdCtx.lineWidth = 1;
+        fbdCtx.beginPath();
+        fbdCtx.moveTo(10, cy);
+        fbdCtx.lineTo(w - 10, cy);
+        fbdCtx.moveTo(cx, 10);
+        fbdCtx.lineTo(cx, h - 10);
+        fbdCtx.arc(cx, cy, 42, 0, Math.PI * 2);
+        fbdCtx.stroke();
+
+        // Apparent wind streamlines across FBD
+        const appAngle = Math.atan2(kite.vAppY, Math.max(0.01, kite.vAppX));
+        fbdCtx.save();
+        fbdCtx.translate(cx, cy);
+        fbdCtx.rotate(-appAngle);
+        fbdCtx.strokeStyle = "rgba(56, 189, 248, 0.25)";
+        fbdCtx.setLineDash([4, 4]);
+        fbdCtx.beginPath();
+        fbdCtx.moveTo(-68, 0);
+        fbdCtx.lineTo(68, 0);
+        fbdCtx.stroke();
+        fbdCtx.restore();
+
+        // Normalize vectors so largest force fits inside 54px radius
+        const maxF = Math.max(1.5, kite.liftMag, kite.dragMag, kite.gravMag, kite.tensMag);
+        const scale = (f) => Math.max(10, (f / maxF) * 52);
+
+        // Lift
+        if (kite.liftMag > 0.02) {
+          const l = scale(kite.liftMag);
+          drawVectorArrow(
+            fbdCtx, cx, cy,
+            cx + (kite.liftX / kite.liftMag) * l,
+            cy - (kite.liftY / kite.liftMag) * l,
+            "#34d399", null, 2.2
+          );
+        }
+        // Drag
+        if (kite.dragMag > 0.02) {
+          const l = scale(kite.dragMag);
+          drawVectorArrow(
+            fbdCtx, cx, cy,
+            cx + (kite.dragX / kite.dragMag) * l,
+            cy - (kite.dragY / kite.dragMag) * l,
+            "#fb7185", null, 2.2
+          );
+        }
+        // Gravity
+        if (kite.gravMag > 0.02) {
+          const l = scale(kite.gravMag);
+          drawVectorArrow(fbdCtx, cx, cy, cx, cy + l, "#fbbf24", null, 2.2);
+        }
+        // Tension
+        if (kite.tensMag > 0.02) {
+          const l = scale(kite.tensMag);
+          drawVectorArrow(
+            fbdCtx, cx, cy,
+            cx + (kite.tensX / kite.tensMag) * l,
+            cy - (kite.tensY / kite.tensMag) * l,
+            "#c084fc", null, 2.2
+          );
+        }
+
+        // Kite chord profile at center
+        fbdCtx.save();
+        fbdCtx.translate(cx, cy);
+        const pitch = kite.pitchAngle;
+        fbdCtx.strokeStyle = kite.isStalled ? "#fb7185" : "#f8fafc";
+        fbdCtx.lineWidth = 3.5;
+        fbdCtx.lineCap = "round";
+        fbdCtx.beginPath();
+        fbdCtx.moveTo(-Math.cos(pitch) * 18, -Math.sin(pitch) * 18);
+        fbdCtx.lineTo(Math.cos(pitch) * 18, Math.sin(pitch) * 18);
+        fbdCtx.stroke();
+
+        // Center of Pressure dot
+        fbdCtx.fillStyle = "#38bdf8";
+        fbdCtx.beginPath();
+        fbdCtx.arc(0, 0, 3.5, 0, Math.PI * 2);
+        fbdCtx.fill();
+        fbdCtx.restore();
+      }
+
+      function renderTelemetryChart() {
+        const w = chartCanvas.width;
+        const h = chartCanvas.height;
+        chartCtx.clearRect(0, 0, w, h);
+
+        const n = chartHistory.alt.length;
+        if (n < 2) return;
+
+        // Helper to plot a series normalized to its dynamic range
+        function plotSeries(data, maxRef, color) {
+          chartCtx.beginPath();
+          for (let i = 0; i < data.length; i++) {
+            const x = (i / (chartHistory.maxSamples - 1)) * w;
+            const norm = Math.min(1, Math.max(0, data[i] / maxRef));
+            const y = h - 4 - norm * (h - 8);
+            if (i === 0) chartCtx.moveTo(x, y);
+            else chartCtx.lineTo(x, y);
+          }
+          chartCtx.strokeStyle = color;
+          chartCtx.lineWidth = 1.6;
+          chartCtx.stroke();
+        }
+
+        const maxAlt = Math.max(20, params.lineLength * 1.05);
+        const maxForce = Math.max(15, ...chartHistory.lift, ...chartHistory.tension);
+
+        plotSeries(chartHistory.alt, maxAlt, "#38bdf8");
+        plotSeries(chartHistory.lift, maxForce, "#34d399");
+        plotSeries(chartHistory.tension, maxForce, "#c084fc");
+      }
+
+      function updateTelemetryDOM() {
+        const elevDeg = Math.atan2(kite.y, kite.x) * (180 / Math.PI);
+        const ldRatio = kite.dragMag > 0.001 ? (kite.liftMag / kite.dragMag) : 0;
+
+        document.getElementById("telAltitude").textContent = `${kite.y.toFixed(1)} m`;
+        document.getElementById("telDownwind").textContent = `Downwind X: ${kite.x.toFixed(1)} m`;
+        document.getElementById("telElevation").textContent = `${elevDeg.toFixed(1)}°`;
+        document.getElementById("telEffectiveAoA").textContent = `Eff. AoA: ${kite.effectiveAoADeg.toFixed(1)}°`;
+
+        document.getElementById("telLift").textContent = `${kite.liftMag.toFixed(2)} N`;
+        document.getElementById("telCL").textContent = `C_L: ${kite.cL.toFixed(2)}`;
+        document.getElementById("telDrag").textContent = `${kite.dragMag.toFixed(2)} N`;
+        document.getElementById("telCD").textContent = `C_D: ${kite.cD.toFixed(2)}`;
+
+        document.getElementById("telTension").textContent = `${kite.tensMag.toFixed(2)} N`;
+        document.getElementById("telTensionKg").textContent = `Pull: ${(kite.tensMag / G).toFixed(2)} kgf`;
+
+        document.getElementById("telLD").textContent = ldRatio.toFixed(2);
+        document.getElementById("telGravity").textContent = `Weight: ${kite.gravMag.toFixed(2)} N`;
+
+        // FBD mini readouts
+        document.getElementById("fbdAoAText").textContent = `α = ${kite.effectiveAoADeg.toFixed(1)}°`;
+        document.getElementById("fbdLiftVal").textContent = `${kite.liftMag.toFixed(1)} N`;
+        document.getElementById("fbdDragVal").textContent = `${kite.dragMag.toFixed(1)} N`;
+        document.getElementById("fbdGravVal").textContent = `${kite.gravMag.toFixed(1)} N`;
+        document.getElementById("fbdTensVal").textContent = `${kite.tensMag.toFixed(1)} N`;
+        document.getElementById("localWindBadge").textContent = `V_app: ${kite.vAppMag.toFixed(1)} m/s`;
+        const tetherBadge = document.getElementById("telTetherBadge");
+        if (tetherBadge) {
+          tetherBadge.textContent = `Line: ${kite.currentLineLen.toFixed(1)} m / ${MAX_LINE_LENGTH} m`;
+        }
+
+        // Keep Line Length slider readout synced if winch-pulling or drag-extending changed params.lineLength
+        const sliderLL = document.getElementById("sliderLineLength");
+        if (sliderLL && Math.abs(parseFloat(sliderLL.value) - params.lineLength) >= 0.5) {
+          sliderLL.value = Math.round(params.lineLength);
+          document.getElementById("valLineLength").textContent = Math.round(params.lineLength);
+        }
+
+        // Flight Regime Diagnostic Badge
+        const statusDot = document.getElementById("statusDot");
+        const regimeText = document.getElementById("flightRegimeText");
+
+        if (kite.y <= 0.55 && kite.liftMag < kite.gravMag) {
+          statusDot.className = "w-2.5 h-2.5 rounded-full bg-slate-400";
+          regimeText.className = "text-xs font-bold tracking-wide uppercase text-slate-300";
+          regimeText.textContent = "Grounded (Insufficient Lift)";
+        } else if (kite.isStalled) {
+          statusDot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping";
+          regimeText.className = "text-xs font-bold tracking-wide uppercase text-rose-400";
+          regimeText.textContent = "Aerodynamic Stall (High Drag)";
+        } else if (kite.isSlack) {
+          statusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse";
+          regimeText.className = "text-xs font-bold tracking-wide uppercase text-amber-300";
+          regimeText.textContent = "Line Slack / Drifting";
+        } else if (kite.tensMag > 65) {
+          statusDot.className = "w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse";
+          regimeText.className = "text-xs font-bold tracking-wide uppercase text-purple-300";
+          regimeText.textContent = "High Line Tension Load";
+        } else {
+          statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse";
+          regimeText.className = "text-xs font-bold tracking-wide uppercase text-emerald-300";
+          regimeText.textContent = "Stable Equilibrium Flight";
+        }
+      }
+
+      function syncSlidersToUI() {
+        document.getElementById("sliderWindSpeed").value = params.windSpeed;
+        document.getElementById("valWindSpeed").textContent = params.windSpeed.toFixed(1);
+        document.getElementById("valWindKnots").textContent = (params.windSpeed * 1.94384).toFixed(1);
+
+        document.getElementById("sliderTurbulence").value = params.turbulence;
+        document.getElementById("valTurbulence").textContent = params.turbulence.toFixed(0);
+
+        document.getElementById("sliderLineLength").value = Math.round(params.lineLength);
+        document.getElementById("valLineLength").textContent = Math.round(params.lineLength);
+
+        document.getElementById("sliderAoA").value = params.trimAoA;
+        document.getElementById("valAoA").textContent = params.trimAoA.toFixed(1);
+
+        document.getElementById("sliderMass").value = params.kiteMassG;
+        document.getElementById("valMass").textContent = params.kiteMassG.toFixed(0);
+        document.getElementById("valTailMass").textContent = (params.tailLength * TAIL_MASS_PER_M * 1000).toFixed(0);
+
+        document.getElementById("sliderTail").value = params.tailLength;
+        document.getElementById("valTail").textContent = params.tailLength.toFixed(1);
+
+        document.getElementById("sliderZoom").value = camera.manualZoomMult;
+        document.getElementById("valZoomMult").textContent = `${camera.manualZoomMult.toFixed(2)}x`;
+      }
+
+      function adjustLineLengthBy(deltaMeters) {
+        params.lineLength = Math.max(MIN_LINE_LENGTH, Math.min(MAX_LINE_LENGTH, params.lineLength + deltaMeters));
+        syncSlidersToUI();
+      }
+
+      // Bind Sliders
+      document.getElementById("sliderWindSpeed").addEventListener("input", (e) => {
+        params.windSpeed = parseFloat(e.target.value);
+        syncSlidersToUI();
+      });
+      document.getElementById("sliderTurbulence").addEventListener("input", (e) => {
+        params.turbulence = parseFloat(e.target.value);
+        syncSlidersToUI();
+      });
+      document.getElementById("sliderLineLength").addEventListener("input", (e) => {
+        params.lineLength = parseFloat(e.target.value);
+        syncSlidersToUI();
+      });
+      document.getElementById("btnReelIn10").addEventListener("click", () => adjustLineLengthBy(-10));
+      document.getElementById("btnLetOut10").addEventListener("click", () => adjustLineLengthBy(10));
+
+      document.getElementById("chkAutoExtendDrag").addEventListener("change", (e) => {
+        params.autoExtendOnDrag = e.target.checked;
+      });
+      document.getElementById("chkWheelReelsLine").addEventListener("change", (e) => {
+        params.wheelReelsLine = e.target.checked;
+      });
+
+      document.getElementById("sliderAoA").addEventListener("input", (e) => {
+        params.trimAoA = parseFloat(e.target.value);
+        syncSlidersToUI();
+      });
+      document.getElementById("sliderMass").addEventListener("input", (e) => {
+        params.kiteMassG = parseFloat(e.target.value);
+        syncSlidersToUI();
+      });
+      document.getElementById("sliderTail").addEventListener("input", (e) => {
+        params.tailLength = parseFloat(e.target.value);
+        syncSlidersToUI();
+      });
+
+      // Bind Force Vector Checkboxes
+      document.getElementById("chkLift").addEventListener("change", (e) => showVectors.lift = e.target.checked);
+      document.getElementById("chkDrag").addEventListener("change", (e) => showVectors.drag = e.target.checked);
+      document.getElementById("chkGravity").addEventListener("change", (e) => showVectors.gravity = e.target.checked);
+      document.getElementById("chkTension").addEventListener("change", (e) => showVectors.tension = e.target.checked);
+      document.getElementById("chkNet").addEventListener("change", (e) => showVectors.apparentWind = e.target.checked);
+
+      // Flight Presets (including 300m High-Altitude preset)
+      const PRESETS = {
+        standard: { windSpeed: 8.5, turbulence: 18, lineLength: 85, trimAoA: 14.0, kiteMassG: 280, tailLength: 4.0 },
+        ultralight: { windSpeed: 4.2, turbulence: 8, lineLength: 55, trimAoA: 16.0, kiteMassG: 85, tailLength: 2.0 },
+        storm: { windSpeed: 17.5, turbulence: 55, lineLength: 140, trimAoA: 11.5, kiteMassG: 720, tailLength: 9.5 },
+        stall: { windSpeed: 9.0, turbulence: 22, lineLength: 75, trimAoA: 31.0, kiteMassG: 320, tailLength: 1.5 },
+        highalt: { windSpeed: 12.5, turbulence: 20, lineLength: 260, trimAoA: 13.5, kiteMassG: 340, tailLength: 5.5 }
+      };
+
+      document.querySelectorAll(".preset-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const key = btn.getAttribute("data-preset");
+          if (!PRESETS[key]) return;
+          Object.assign(params, PRESETS[key]);
+          syncSlidersToUI();
+
+          document.querySelectorAll(".preset-btn").forEach((b) => {
+            b.className = "preset-btn px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition";
+          });
+          btn.className = "preset-btn px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-300 border border-sky-500/40 font-medium transition";
+        });
+      });
+
+      // Enhanced Line Tug & Hold-to-Winch-Pull Interaction
+      const btnTugLine = document.getElementById("btnTugLine");
+      const labelTugBtn = document.getElementById("labelTugBtn");
+
+      function startWinchPull() {
+        isWinchPulling = true;
+        tugTimer = 0.85;
+        labelTugBtn.textContent = "Winch Pulling...";
+        btnTugLine.classList.add("ring-2", "ring-amber-400/60", "bg-amber-500/40");
+
+        const r = Math.hypot(kite.x, kite.y);
+        if (r > 1) {
+          kite.vx -= (kite.x / r) * 5.2;
+          kite.vy += (kite.x / r) * 3.8;
+        }
+      }
+
+      function stopWinchPull() {
+        if (!isWinchPulling) return;
+        isWinchPulling = false;
+        labelTugBtn.textContent = "Hold to Pull / Tug";
+        btnTugLine.classList.remove("ring-2", "ring-amber-400/60", "bg-amber-500/40");
+      }
+
+      btnTugLine.addEventListener("mousedown", startWinchPull);
+      btnTugLine.addEventListener("touchstart", (e) => { e.preventDefault(); startWinchPull(); }, { passive: false });
+      window.addEventListener("mouseup", stopWinchPull);
+      window.addEventListener("touchend", stopWinchPull);
+
+      // Spacebar shortcut for Hold-to-Pull Winch Tug
+      window.addEventListener("keydown", (e) => {
+        if (e.code === "Space" && document.activeElement.tagName !== "INPUT" && !isWinchPulling) {
+          e.preventDefault();
+          startWinchPull();
+        }
+      });
+      window.addEventListener("keyup", (e) => {
+        if (e.code === "Space") {
+          stopWinchPull();
+        }
+      });
+
+      document.getElementById("btnWindGust").addEventListener("click", () => {
+        gustTimer = 3.0;
+      });
+
+      document.getElementById("btnPause").addEventListener("click", () => {
+        isPaused = !isPaused;
+        const icon = document.getElementById("iconPause");
+        const label = document.getElementById("labelPause");
+        if (isPaused) {
+          icon.className = "ph-fill ph-play text-emerald-400";
+          label.textContent = "Resume";
+        } else {
+          icon.className = "ph-fill ph-pause";
+          label.textContent = "Pause";
+        }
+      });
+
+      document.getElementById("btnReset").addEventListener("click", () => {
+        const angle = 54 * (Math.PI / 180);
+        kite.currentLineLen = params.lineLength;
+        kite.x = Math.cos(angle) * kite.currentLineLen;
+        kite.y = Math.sin(angle) * kite.currentLineLen;
+        kite.vx = 0;
+        kite.vy = 0;
+        kite.pitchAngle = params.trimAoA * (Math.PI / 180);
+        kite.pitchVel = 0;
+        trailHistory.length = 0;
+        initTailNodes();
+      });
+
+      // Adaptive Camera Scale & Zoom Controls (0.35x to 1.5x + Auto-Fit)
+      const btnAutoCam = document.getElementById("btnAutoCam");
+      const sliderZoom = document.getElementById("sliderZoom");
+
+      function setAutoCamUI(enabled) {
+        camera.autoFit = enabled;
+        btnAutoCam.className = enabled
+          ? "px-2 py-0.5 rounded text-[11px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 transition"
+          : "px-2 py-0.5 rounded text-[11px] font-medium text-slate-400 hover:text-white border border-slate-700 transition";
+      }
+
+      function setZoomMultiplier(newMult) {
+        camera.manualZoomMult = Math.max(0.35, Math.min(1.5, newMult));
+        sliderZoom.value = camera.manualZoomMult;
+        document.getElementById("valZoomMult").textContent = `${camera.manualZoomMult.toFixed(2)}x`;
+        if (!camera.autoFit) {
+          camera.targetScale = Math.max(0.5, Math.min(25, 6.5 * camera.manualZoomMult));
+        }
+      }
+
+      btnAutoCam.addEventListener("click", () => setAutoCamUI(!camera.autoFit));
+
+      sliderZoom.addEventListener("input", (e) => {
+        setZoomMultiplier(parseFloat(e.target.value));
+      });
+
+      document.getElementById("btnZoomIn").addEventListener("click", () => {
+        setZoomMultiplier(camera.manualZoomMult + 0.1);
+      });
+      document.getElementById("btnZoomOut").addEventListener("click", () => {
+        setZoomMultiplier(camera.manualZoomMult - 0.1);
+      });
+
+      // Mouse Wheel: dynamically reels line in/out (or zooms camera when Shift is held or wheelReelsLine is off)
+      simCanvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        if (params.wheelReelsLine && !e.shiftKey) {
+          const deltaLine = e.deltaY < 0 ? 5 : -5;
+          adjustLineLengthBy(deltaLine);
+        } else {
+          const zoomDelta = e.deltaY < 0 ? 0.08 : -0.08;
+          setZoomMultiplier(camera.manualZoomMult + zoomDelta);
+        }
+      }, { passive: false });
+
+      // --- Closeable & Minimizable UI Helper Panels Manager ---
+      const panelState = {
+        controls: { open: true, minimized: false },
+        fbd: { open: true, minimized: false },
+        vectors: { open: true, minimized: false },
+        telemetry: { open: true, minimized: false },
+        tips: { open: true, minimized: false }
+      };
+
+      function updateDockChipStyle(btnId, isOpen) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        btn.className = isOpen
+          ? "px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 transition flex items-center gap-1"
+          : "px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-800/80 text-slate-400 hover:text-slate-200 border border-slate-700/70 transition flex items-center gap-1";
+      }
+
+      function syncAllPanelsUI() {
+        // 1. Controls Sidebar Panel
+        const controlsPanel = document.getElementById("controlsSidebarPanel");
+        const controlsBody = document.getElementById("controlsSidebarBody");
+        const controlsFooter = document.getElementById("controlsFooterNote");
+        const mainViewportCol = document.getElementById("mainViewportCol");
+
+        if (panelState.controls.open) {
+          controlsPanel.classList.remove("hidden");
+          mainViewportCol.className = "lg:col-span-8 xl:col-span-9 flex flex-col relative bg-slate-950 min-h-[540px] lg:min-h-0 transition-all duration-200";
+          if (panelState.controls.minimized) {
+            controlsBody.classList.add("hidden");
+            controlsFooter.classList.add("hidden");
+          } else {
+            controlsBody.classList.remove("hidden");
+            controlsFooter.classList.remove("hidden");
+          }
+        } else {
+          controlsPanel.classList.add("hidden");
+          mainViewportCol.className = "lg:col-span-12 xl:col-span-12 flex flex-col relative bg-slate-950 min-h-[540px] lg:min-h-0 transition-all duration-200";
+        }
+        updateDockChipStyle("dockBtnControls", panelState.controls.open);
+
+        // 2. Free-Body Diagram (FBD) Panel
+        const fbdPanel = document.getElementById("fbdPanel");
+        const fbdBody = document.getElementById("fbdPanelBody");
+        fbdPanel.classList.toggle("hidden", !panelState.fbd.open);
+        fbdBody.classList.toggle("hidden", panelState.fbd.minimized);
+        updateDockChipStyle("dockBtnFbd", panelState.fbd.open);
+
+        // 3. Vector Legend HUD Panel
+        const vectorsPanel = document.getElementById("vectorsHudPanel");
+        const vectorsBody = document.getElementById("vectorsHudBody");
+        vectorsPanel.classList.toggle("hidden", !panelState.vectors.open);
+        vectorsBody.classList.toggle("hidden", panelState.vectors.minimized);
+        updateDockChipStyle("dockBtnVectors", panelState.vectors.open);
+
+        // 4. Bottom Telemetry & Strip Charts Dock
+        const telPanel = document.getElementById("telemetryDockPanel");
+        const telBody = document.getElementById("telemetryDockBody");
+        telPanel.classList.toggle("hidden", !panelState.telemetry.open);
+        telBody.classList.toggle("hidden", panelState.telemetry.minimized);
+        updateDockChipStyle("dockBtnTelemetry", panelState.telemetry.open);
+
+        // 5. Interactive Flight Tips Banner
+        const tipsPanel = document.getElementById("tipsBannerPanel");
+        const tipsBody = document.getElementById("tipsBannerBody");
+        tipsPanel.classList.toggle("hidden", !panelState.tips.open);
+        tipsBody.classList.toggle("hidden", panelState.tips.minimized);
+        updateDockChipStyle("dockBtnTips", panelState.tips.open);
+
+        // Update "Hide All UI" / "Restore All" button label
+        const anyOpen = Object.values(panelState).some((st) => st.open);
+        const toggleAllBtn = document.getElementById("dockBtnToggleAll");
+        if (toggleAllBtn) {
+          toggleAllBtn.textContent = anyOpen ? "Hide All UI" : "Restore All UI";
+        }
+
+        // Resize canvas after layout changes so viewport fills cleanly
+        setTimeout(resizeCanvases, 20);
+      }
+
+      // Bind Close (x), Minimize (-), and Top Dock Chip buttons
+      function wirePanelControls(key, dockBtnId, closeBtnId, minBtnId) {
+        document.getElementById(dockBtnId).addEventListener("click", () => {
+          panelState[key].open = !panelState[key].open;
+          if (panelState[key].open) panelState[key].minimized = false;
+          syncAllPanelsUI();
+        });
+        document.getElementById(closeBtnId).addEventListener("click", () => {
+          panelState[key].open = false;
+          syncAllPanelsUI();
+        });
+        document.getElementById(minBtnId).addEventListener("click", () => {
+          panelState[key].minimized = !panelState[key].minimized;
+          syncAllPanelsUI();
+        });
+      }
+
+      wirePanelControls("controls", "dockBtnControls", "btnCloseControls", "btnMinControls");
+      wirePanelControls("fbd", "dockBtnFbd", "btnCloseFbd", "btnMinFbd");
+      wirePanelControls("vectors", "dockBtnVectors", "btnCloseVectors", "btnMinVectors");
+      wirePanelControls("telemetry", "dockBtnTelemetry", "btnCloseTelemetry", "btnMinTelemetry");
+      wirePanelControls("tips", "dockBtnTips", "btnCloseTips", "btnMinTips");
+
+      document.getElementById("dockBtnToggleAll").addEventListener("click", () => {
+        const anyOpen = Object.values(panelState).some((st) => st.open);
+        const targetOpen = !anyOpen;
+        Object.keys(panelState).forEach((k) => {
+          panelState[k].open = targetOpen;
+          if (targetOpen) panelState[k].minimized = false;
+        });
+        syncAllPanelsUI();
+      });
+
+      // Direct Canvas Pointer Interaction (Drag Kite in Sky & Auto-Extend Line up to 300m)
+      function getCanvasRelativeCoords(e) {
+        const rect = simCanvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top
+        };
+      }
+
+      function onPointerDown(e) {
+        const pt = getCanvasRelativeCoords(e);
+        const kiteScreen = worldToScreen(kite.x, kite.y);
+        const distPx = Math.hypot(pt.x - kiteScreen.x, pt.y - kiteScreen.y);
+        if (distPx < 54) {
+          kite.isDragging = true;
+          if (e.cancelable) e.preventDefault();
+        }
+      }
+
+      function onPointerMove(e) {
+        if (!kite.isDragging) return;
+        if (e.cancelable) e.preventDefault();
+        const pt = getCanvasRelativeCoords(e);
+        const worldPt = screenToWorld(pt.x, pt.y);
+        let wx = Math.max(1.0, worldPt.x);
+        let wy = Math.max(0.5, worldPt.y);
+
+        const r = Math.hypot(wx, wy);
+
+        if (params.autoExtendOnDrag) {
+          // Allow pulling the kite outward anywhere up to MAX_LINE_LENGTH (300m) and smoothly extend the line
+          const clampedR = Math.min(MAX_LINE_LENGTH, r);
+          if (r > clampedR) {
+            wx = (wx / r) * clampedR;
+            wy = (wy / r) * clampedR;
+          }
+          if (clampedR > params.lineLength) {
+            params.lineLength = Math.round(clampedR);
+            kite.currentLineLen = clampedR;
+            syncSlidersToUI();
+          } else if (clampedR > kite.currentLineLen) {
+            kite.currentLineLen = clampedR;
+          }
+        } else {
+          // Even when auto-extend is unchecked, allow a 35% elastic winch payout tolerance up to 300m
+          const maxDragRadius = Math.min(MAX_LINE_LENGTH, kite.currentLineLen * 1.35);
+          if (r > maxDragRadius) {
+            wx = (wx / r) * maxDragRadius;
+            wy = (wy / r) * maxDragRadius;
+          }
+          if (Math.hypot(wx, wy) > kite.currentLineLen) {
+            kite.currentLineLen = Math.hypot(wx, wy);
+          }
+        }
+
+        kite.x = wx;
+        kite.y = wy;
+        kite.vx = 0;
+        kite.vy = 0;
+        initTailNodes();
+      }
+
+      function onPointerUp() {
+        kite.isDragging = false;
+      }
+
+      simCanvas.addEventListener("mousedown", onPointerDown);
+      window.addEventListener("mousemove", onPointerMove);
+      window.addEventListener("mouseup", onPointerUp);
+
+      simCanvas.addEventListener("touchstart", onPointerDown, { passive: false });
+      window.addEventListener("touchmove", onPointerMove, { passive: false });
+      window.addEventListener("touchend", onPointerUp);
+
+      let lastFrameTime = performance.now();
+      function animate(now) {
+        const dt = (now - lastFrameTime) / 1000.0;
+        lastFrameTime = now;
+
+        stepPhysics(dt);
+        renderMainScene();
+        renderFreeBodyDiagram();
+        renderTelemetryChart();
+        updateTelemetryDOM();
+
+        requestAnimationFrame(animate);
+      }
+
+      window.onload = function () {
+        resizeCanvases();
+        syncSlidersToUI();
+        initTailNodes();
+        initWindParticles();
+        lastFrameTime = performance.now();
+        requestAnimationFrame(animate);
+      };
+    })();
+  </script>
+</body>
+</html>
