@@ -1,0 +1,2529 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>APEX LAB // Motorsports Telemetry & Pedal Modulation Sim</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #090c10;
+            --panel-bg: #11161f;
+            --border-col: #1f2937;
+        }
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            background-color: var(--bg-dark);
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom Scrollbar for inner cards if needed on tiny screens */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b0e14;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 9999px;
+        }
+        .telemetry-grid-bg {
+            background-image: 
+                linear-gradient(to right, rgba(30, 41, 59, 0.35) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(30, 41, 59, 0.35) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        .glow-red { box-shadow: 0 0 15px rgba(239, 68, 68, 0.35); }
+        .glow-green { box-shadow: 0 0 15px rgba(16, 185, 129, 0.35); }
+        .glow-amber { box-shadow: 0 0 15px rgba(245, 158, 11, 0.35); }
+        .glow-cyan { box-shadow: 0 0 15px rgba(6, 182, 212, 0.35); }
+        
+        input[type=range].pedal-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: ns-resize;
+        }
+        input[type=range].pedal-slider::-webkit-slider-runnable-track {
+            height: 8px;
+            border-radius: 4px;
+        }
+        input[type=range].pedal-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #f8fafc;
+            border: 2px solid #0f172a;
+            margin-top: -5px;
+            box-shadow: 0 0 8px rgba(255,255,255,0.6);
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden select-none">
+
+    <!-- TOP NAVIGATION & TELEMETRY HEADER -->
+    <header class="bg-[#0d1119] border-b border-slate-800/90 px-3 lg:px-4 py-2 flex flex-col gap-2 shrink-0 z-20">
+        <!-- Row 1: Brand, Apex Line Selector, and Action Toggles -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 flex-wrap">
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-700/80 px-2.5 py-1 rounded-lg">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="mono font-extrabold text-sm tracking-wider text-white">APEX<span class="text-cyan-400">LAB</span></span>
+                    <span class="text-[10px] mono uppercase px-1.5 py-0.5 bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 rounded">v3.5 MATRIX</span>
+                </div>
+
+                <!-- Racing Line Mode Selector (Kept + Enhanced for all combinations) -->
+                <div class="flex items-center bg-slate-900/90 p-1 rounded-lg border border-slate-800 gap-1">
+                    <button id="mode-late" onclick="setApexMode('late')" class="px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        <span>Late Apex</span>
+                    </button>
+                    <button id="mode-geometric" onclick="setApexMode('geometric')" class="px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent">
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                        <span>Geometric Apex</span>
+                    </button>
+                    <button id="mode-early" onclick="setApexMode('early')" class="px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent">
+                        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                        <span>Early Apex</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Steering & Ghost Toggles + Action Buttons -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+                <!-- Steering Mode Toggle -->
+                <button id="btn-steer-mode" onclick="toggleSteerMode()" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/40 hover:bg-indigo-500/25 transition flex items-center gap-1.5" title="Pedals Only lets you focus 100% on Brake & Throttle timing while the car steers along the chosen line, unless you exceed tire traction!">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                    <span id="steer-mode-label">Mode: Pedals Only (Auto-Steer)</span>
+                </button>
+
+                <!-- Ghost Toggle -->
+                <button id="btn-ghost" onclick="toggleGhost()" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-cyan-500/15 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/25 transition flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400" id="ghost-dot"></span>
+                    <span>AI Ghost: ON</span>
+                </button>
+
+                <!-- Theory Modal Toggle -->
+                <button onclick="toggleTheoryModal()" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span class="hidden md:inline">Apex Guide</span>
+                </button>
+
+                <!-- Reset / Retry Button -->
+                <button onclick="resetRun()" class="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition flex items-center gap-1 shadow-lg shadow-emerald-500/10">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span>RETRY (R)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Row 2: 3D Matrix Track Configurator (Preset + Turn Angle + Road Shape + Road Length) -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-800/80 text-xs">
+            <!-- Famous Corner Preset Selector -->
+            <div class="flex items-center gap-1.5">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-cyan-400 mono">Circuit Preset:</span>
+                <select id="select-preset" onchange="applyCornerPreset(this.value)" class="bg-slate-900 border border-slate-700 hover:border-cyan-500/50 text-slate-100 text-xs font-semibold rounded-lg px-2.5 py-1 focus:outline-none focus:border-cyan-400 transition cursor-pointer">
+                    <option value="standard_90">🏁 Standard 90° Bend (90° • Constant • Medium)</option>
+                    <option value="decreasing_hairpin">🔥 Decreasing Radius Hairpin (180° • Tightening • Long)</option>
+                    <option value="double_apex_sweeper">⚡ Double Apex Sweeper (135° • Double Apex • Medium)</option>
+                    <option value="monza_parabolica">🚀 Monza Parabolica Style (135° • Increasing • Long)</option>
+                    <option value="fast_kink">💨 High-Speed 45° Sweeper (45° • Constant • Long)</option>
+                    <option value="tight_shootout">🎯 Technical Tight 135° (135° • Decreasing • Short)</option>
+                    <option value="hairpin_long">🛑 Grand Prix 180° Hairpin (180° • Constant • Long)</option>
+                    <option value="custom" disabled>⚙️ Custom Combination</option>
+                </select>
+            </div>
+
+            <!-- Individual Dimension Selectors: 1. Turn Angle | 2. Road Shape | 3. Straight Length -->
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- 1. Turn Angle -->
+                <div class="flex items-center bg-slate-900/90 border border-slate-800 rounded-lg p-0.5 gap-0.5">
+                    <span class="text-[10px] font-bold uppercase text-slate-400 mono px-2">1. Angle:</span>
+                    <button onclick="setTrackConfig('angle', 45)" id="cfg-angle-45" class="px-2 py-0.5 rounded text-[11px] font-bold mono transition text-slate-400 hover:text-white">45°</button>
+                    <button onclick="setTrackConfig('angle', 90)" id="cfg-angle-90" class="px-2 py-0.5 rounded text-[11px] font-bold mono transition bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">90°</button>
+                    <button onclick="setTrackConfig('angle', 135)" id="cfg-angle-135" class="px-2 py-0.5 rounded text-[11px] font-bold mono transition text-slate-400 hover:text-white">135°</button>
+                    <button onclick="setTrackConfig('angle', 180)" id="cfg-angle-180" class="px-2 py-0.5 rounded text-[11px] font-bold mono transition text-slate-400 hover:text-white">180°</button>
+                </div>
+
+                <!-- 2. Road Shape -->
+                <div class="flex items-center bg-slate-900/90 border border-slate-800 rounded-lg p-0.5 gap-0.5">
+                    <span class="text-[10px] font-bold uppercase text-slate-400 mono px-2">2. Shape:</span>
+                    <button onclick="setTrackConfig('shape', 'constant')" id="cfg-shape-constant" class="px-2 py-0.5 rounded text-[11px] font-semibold transition bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" title="Constant Radius Arc">Constant</button>
+                    <button onclick="setTrackConfig('shape', 'decreasing')" id="cfg-shape-decreasing" class="px-2 py-0.5 rounded text-[11px] font-semibold transition text-slate-400 hover:text-white" title="Tightens mid-corner! Demands deep trail-braking and a very late apex">Decreasing</button>
+                    <button onclick="setTrackConfig('shape', 'increasing')" id="cfg-shape-increasing" id="cfg-shape-increasing" class="px-2 py-0.5 rounded text-[11px] font-semibold transition text-slate-400 hover:text-white" title="Opens up on exit! Allows earlier apex and rapid throttle roll-on">Increasing</button>
+                    <button onclick="setTrackConfig('shape', 'double')" id="cfg-shape-double" class="px-2 py-0.5 rounded text-[11px] font-semibold transition text-slate-400 hover:text-white" title="Two distinct clipping points (A1 & A2) with a mid-corner throttle modulation!">Double Apex</button>
+                </div>
+
+                <!-- 3. Straight Length -->
+                <div class="flex items-center bg-slate-900/90 border border-slate-800 rounded-lg p-0.5 gap-0.5">
+                    <span class="text-[10px] font-bold uppercase text-slate-400 mono px-2">3. Length:</span>
+                    <button onclick="setTrackConfig('length', 'short')" id="cfg-length-short" class="px-2 py-0.5 rounded text-[11px] font-semibold transition text-slate-400 hover:text-white">Short</button>
+                    <button onclick="setTrackConfig('length', 'medium')" id="cfg-length-medium" class="px-2 py-0.5 rounded text-[11px] font-semibold transition bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">Medium</button>
+                    <button onclick="setTrackConfig('length', 'long')" id="cfg-length-long" class="px-2 py-0.5 rounded text-[11px] font-semibold transition text-slate-400 hover:text-white">Long Straight</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE: LEFT TRACK CANVAS + RIGHT TELEMETRY STACK -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+
+        <!-- LEFT / CENTER: 2D TOP-DOWN TRACK SIMULATION CANVAS -->
+        <div class="relative flex-1 h-full bg-[#090d14] telemetry-grid-bg overflow-hidden flex flex-col">
+            
+            <!-- Top Floating Overlay: Live Corner Phase Prompt & Line Explanation -->
+            <div class="absolute top-3 left-3 right-3 flex flex-wrap items-start justify-between gap-2 pointer-events-none z-10">
+                <!-- Active Line Theory Banner -->
+                <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-3.5 py-2.5 max-w-lg shadow-xl pointer-events-auto">
+                    <div class="flex items-center justify-between gap-2 mb-0.5">
+                        <span id="banner-title" class="text-xs font-extrabold uppercase tracking-wider text-cyan-400 mono">LATE APEX // 90° CONSTANT RADIUS</span>
+                        <span id="banner-badge" class="text-[10px] mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">OPTIMAL EXIT</span>
+                    </div>
+                    <p id="banner-desc" class="text-[11px] text-slate-300 leading-relaxed">
+                        Brake slightly deeper, turn in later, and clip the inside kerb <strong class="text-white">past mid-corner</strong>. Allows straightening the wheel early to hit <strong class="text-emerald-400">100% throttle sooner</strong> for maximum straightaway speed.
+                    </p>
+                </div>
+
+                <!-- Live Dynamic Coaching Prompt Pill -->
+                <div class="bg-slate-950/90 backdrop-blur-md border border-slate-700 rounded-xl px-4 py-2 flex items-center gap-3 shadow-2xl">
+                    <div id="phase-indicator-dot" class="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></div>
+                    <div>
+                        <div class="text-[10px] uppercase tracking-widest text-slate-400 mono">REAL-TIME COACH</div>
+                        <div id="live-coach-cue" class="text-xs sm:text-sm font-extrabold mono text-white tracking-tight">PRESS [W] OR [UP] TO LAUNCH DOWN STRAIGHT</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Interactive Track Canvas -->
+            <canvas id="trackCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+
+            <!-- Bottom Left Floating Legend -->
+            <div class="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-2 hidden sm:flex items-center gap-4 text-[11px] pointer-events-none z-10">
+                <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block"></span><span class="text-slate-300">100% Threshold Brake</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span><span class="text-slate-300">Trail Brake (Bleed Off)</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-cyan-400 inline-block"></span><span class="text-slate-300">Apex Rotation</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-400 inline-block"></span><span class="text-slate-300">Progressive Gas</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-fuchsia-400 inline-block"></span><span class="text-slate-300">Tire Scrub / Understeer</span></div>
+            </div>
+
+            <!-- Interactive On-Screen Touch/Mouse Pedal Pad (Bottom Right of Canvas) -->
+            <div class="absolute bottom-3 right-3 flex items-center gap-2 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 p-2 rounded-xl shadow-2xl z-10">
+                <!-- Steering Left/Right buttons if Manual Mode -->
+                <div id="touch-steer-controls" class="hidden items-center gap-1 pr-2 border-r border-slate-800">
+                    <button onmousedown="setTouchSteer(-1)" onmouseup="setTouchSteer(0)" ontouchstart="setTouchSteer(-1); event.preventDefault();" ontouchend="setTouchSteer(0)" class="w-9 h-11 rounded-lg bg-slate-800 hover:bg-slate-700 active:bg-cyan-500/30 border border-slate-600 flex items-center justify-center text-xs font-bold mono">A/◀</button>
+                    <button onmousedown="setTouchSteer(1)" onmouseup="setTouchSteer(0)" ontouchstart="setTouchSteer(1); event.preventDefault();" ontouchend="setTouchSteer(0)" class="w-9 h-11 rounded-lg bg-slate-800 hover:bg-slate-700 active:bg-cyan-500/30 border border-slate-600 flex items-center justify-center text-xs font-bold mono">D/▶</button>
+                </div>
+
+                <!-- Interactive Drag/Touch Modulation Zone -->
+                <div class="flex items-center gap-2">
+                    <div class="text-right hidden md:block pr-1">
+                        <div class="text-[10px] font-bold text-slate-300 uppercase mono">Controls</div>
+                        <div class="text-[10px] text-slate-400">Hold <span class="text-emerald-400 font-bold">W/↑</span> Gas, <span class="text-rose-400 font-bold">S/↓</span> Brake</div>
+                        <div class="text-[10px] text-slate-400">Or drag sliders for smooth trail brake</div>
+                    </div>
+                    <!-- Brake Touch Button -->
+                    <button id="btn-pedal-brake"
+                        onmousedown="startBtnPedal('brake', 1)" onmouseup="stopBtnPedal('brake')" onmouseleave="stopBtnPedal('brake')"
+                        ontouchstart="startBtnPedal('brake', 1); event.preventDefault();" ontouchend="stopBtnPedal('brake')"
+                        class="w-14 h-12 rounded-lg bg-rose-950/80 hover:bg-rose-900/80 active:bg-rose-600 border border-rose-500/50 flex flex-col items-center justify-center transition">
+                        <span class="text-[10px] font-extrabold text-rose-200 mono">BRAKE</span>
+                        <span class="text-[9px] text-rose-400 mono">[S / ↓]</span>
+                    </button>
+                    <!-- Trail Brake 50% Assist Button -->
+                    <button id="btn-pedal-trail"
+                        onmousedown="startBtnPedal('brake', 0.42)" onmouseup="stopBtnPedal('brake')" onmouseleave="stopBtnPedal('brake')"
+                        ontouchstart="startBtnPedal('brake', 0.42); event.preventDefault();" ontouchend="stopBtnPedal('brake')"
+                        class="w-14 h-12 rounded-lg bg-amber-950/80 hover:bg-amber-900/80 active:bg-amber-600 border border-amber-500/50 flex flex-col items-center justify-center transition"
+                        title="Hold for 42% Trail Brake modulation!">
+                        <span class="text-[10px] font-extrabold text-amber-200 mono">TRAIL</span>
+                        <span class="text-[9px] text-amber-400 mono">[SHIFT]</span>
+                    </button>
+                    <!-- Gas Touch Button -->
+                    <button id="btn-pedal-gas"
+                        onmousedown="startBtnPedal('gas', 1)" onmouseup="stopBtnPedal('gas')" onmouseleave="stopBtnPedal('gas')"
+                        ontouchstart="startBtnPedal('gas', 1); event.preventDefault();" ontouchend="stopBtnPedal('gas')"
+                        class="w-14 h-12 rounded-lg bg-emerald-950/80 hover:bg-emerald-900/80 active:bg-emerald-600 border border-emerald-500/50 flex flex-col items-center justify-center transition">
+                        <span class="text-[10px] font-extrabold text-emerald-200 mono">GAS</span>
+                        <span class="text-[9px] text-emerald-400 mono">[W / ↑]</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- POST-CORNER COACHING DIAGNOSTIC OVERLAY CARD (Hidden until run finishes) -->
+            <div id="coaching-modal" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-md z-30 flex items-center justify-center p-4">
+                <div class="bg-[#111622] border border-slate-700 rounded-2xl max-w-2xl w-full p-5 shadow-2xl animate-fade-in">
+                    <!-- Header -->
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span id="report-grade-badge" class="px-2.5 py-0.5 rounded text-xs font-extrabold mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">RANK: A+</span>
+                                <h2 id="report-headline" class="text-lg font-extrabold text-white tracking-tight">Corner Telemetry Breakdown</h2>
+                            </div>
+                            <p id="report-subheadline" class="text-xs text-slate-400 mt-0.5">Comparing your inputs against the Ideal Reference Telemetry</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[10px] text-slate-400 uppercase mono">Corner Exit Speed</div>
+                            <div class="flex items-baseline gap-2 justify-end">
+                                <span id="report-exit-speed" class="text-2xl font-extrabold mono text-emerald-400">154 km/h</span>
+                                <span id="report-exit-delta" class="text-xs font-bold mono text-slate-400">(Ref: 156 km/h)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3-Phase Diagnostic Grid (Before Apex, At Apex, After Apex) -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                        <!-- 1. Entry & Braking Zone -->
+                        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-rose-400 mono">1. Entry Braking</span>
+                                <span id="diag-brake-status" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 mono">OPTIMAL</span>
+                            </div>
+                            <p id="diag-brake-text" class="text-xs text-slate-300 leading-relaxed">
+                                Hit threshold braking right at the 115m board while the car was straight.
+                            </p>
+                        </div>
+
+                        <!-- 2. Turn-In & Trail Braking to Apex -->
+                        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-amber-400 mono">2. Trail Brake & Apex</span>
+                                <span id="diag-trail-status" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 mono">GOOD</span>
+                            </div>
+                            <p id="diag-trail-text" class="text-xs text-slate-300 leading-relaxed">
+                                Smoothly bled off brake pressure to keep weight on the front nose for rotation.
+                            </p>
+                        </div>
+
+                        <!-- 3. Post-Apex Throttle Pickup -->
+                        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mono">3. Apex Throttle Exit</span>
+                                <span id="diag-gas-status" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 mono">OPTIMAL</span>
+                            </div>
+                            <p id="diag-gas-text" class="text-xs text-slate-300 leading-relaxed">
+                                Waited until clipping the apex before progressively rolling to 100% full throttle.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Apex Mode Comparison Insight Box -->
+                    <div class="bg-cyan-950/30 border border-cyan-500/30 rounded-xl p-3 mb-4 flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center shrink-0 text-cyan-300 font-bold mono text-sm">i</div>
+                        <div class="text-xs text-slate-200 leading-relaxed" id="report-apex-lesson">
+                            <strong>Why Late Apex Wins:</strong> By delaying turn-in and clipping the kerb deeper in the corner, you completed most of your rotation <em>before</em> the apex. That allowed you to unwind the steering wheel and apply 100% gas early without exceeding the Traction Circle!
+                        </div>
+                    </div>
+
+                    <!-- Footer Buttons -->
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 text-xs text-slate-400 mono">
+                            <span>Sector Time: <strong id="report-sector-time" class="text-white">5.42s</strong></span>
+                            <span>•</span>
+                            <span>Min Apex Speed: <strong id="report-min-speed" class="text-cyan-300">86 km/h</strong></span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="switchNextApexMode()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition">
+                                Try Next Apex Line
+                            </button>
+                            <button onclick="cycleNextPreset()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-cyan-950 hover:bg-cyan-900 text-cyan-200 border border-cyan-600/50 transition">
+                                Next Circuit Preset
+                            </button>
+                            <button onclick="resetRun()" class="px-5 py-2 rounded-xl text-xs font-extrabold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition shadow-lg shadow-emerald-500/20">
+                                RETRY CORNER [SPACE / R]
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT SIDEBAR: LIVE F1/GT TELEMETRY HUD -->
+        <aside class="w-full lg:w-[410px] xl:w-[440px] bg-[#0d1119] border-t lg:border-t-0 lg:border-l border-slate-800/90 flex flex-col justify-between p-3 gap-2.5 shrink-0 z-20 overflow-y-auto">
+            
+            <!-- 1. DIGITAL SPEEDOMETER, EXIT SPEED & SECTOR METRICS -->
+            <div class="grid grid-cols-3 gap-2 bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <!-- Current Speed -->
+                <div class="bg-slate-950/80 rounded-lg p-2 border border-slate-800/60">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-400 mono flex items-center justify-between">
+                        <span>SPEED</span>
+                        <span id="gear- readout" class="text-cyan-400 font-bold">G3</span>
+                    </div>
+                    <div class="flex items-baseline gap-1 mt-0.5">
+                        <span id="hud-speed" class="text-2xl font-extrabold mono text-white tracking-tight">110</span>
+                        <span class="text-[10px] text-slate-400 mono">km/h</span>
+                    </div>
+                </div>
+
+                <!-- Exit Speed at Track-Out (Key Metric) -->
+                <div class="bg-slate-950/80 rounded-lg p-2 border border-slate-800/60">
+                    <div class="text-[10px] uppercase tracking-wider text-emerald-400 mono flex items-center justify-between">
+                        <span>EXIT SPEED</span>
+                        <span class="text-[9px] text-slate-500">TARGET</span>
+                    </div>
+                    <div class="flex items-baseline gap-1 mt-0.5">
+                        <span id="hud-exit-speed" class="text-2xl font-extrabold mono text-emerald-400 tracking-tight">--</span>
+                        <span id="hud-target-exit" class="text-[10px] text-slate-400 mono">/164</span>
+                    </div>
+                </div>
+
+                <!-- Tire Grip Load % -->
+                <div class="bg-slate-950/80 rounded-lg p-2 border border-slate-800/60">
+                    <div class="text-[10px] uppercase tracking-wider text-amber-400 mono flex items-center justify-between">
+                        <span>TIRE LOAD</span>
+                        <span id="hud-grip-state" class="text-[9px] text-emerald-400">GRIP OK</span>
+                    </div>
+                    <div class="flex items-baseline gap-1 mt-0.5">
+                        <span id="hud-tire-pct" class="text-2xl font-extrabold mono text-white tracking-tight">0%</span>
+                        <span class="text-[10px] text-slate-400 mono">max G</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. FRICTION CIRCLE (KAMM'S CIRCLE) + LIVE PEDAL MODULATION BARS -->
+            <div class="grid grid-cols-2 gap-2.5 flex-1 min-h-[185px]">
+                
+                <!-- Friction Circle (G-G Diagram) -->
+                <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5 flex flex-col justify-between">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300 mono">Traction Circle (G-G)</span>
+                        <span id="weight-bias-pill" class="text-[9px] mono px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300">Front: 50%</span>
+                    </div>
+                    <div class="relative flex-1 flex items-center justify-center my-1">
+                        <canvas id="ggCanvas" width="150" height="150" class="max-w-[145px] max-h-[145px]"></canvas>
+                    </div>
+                    <div class="text-[10px] text-slate-400 text-center leading-tight">
+                        Combine <span class="text-amber-300 font-semibold">Brake + Turn</span> inside the outer ring!
+                    </div>
+                </div>
+
+                <!-- Live Pedal Bars vs Ideal Coach Reference Bars -->
+                <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5 flex flex-col justify-between">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300 mono">Pedal Modulation</span>
+                        <span class="text-[9px] mono text-cyan-400">Cyan Tick = Ideal</span>
+                    </div>
+
+                    <div class="flex-1 flex items-center justify-around gap-2 py-2">
+                        <!-- BRAKE BAR + SLIDER -->
+                        <div class="flex flex-col items-center h-full justify-between w-1/2">
+                            <span id="brake-pct-label" class="text-xs font-extrabold mono text-rose-400">0%</span>
+                            <div class="relative w-10 flex-1 bg-slate-950 rounded-lg border border-slate-800 overflow-hidden my-1 flex items-end">
+                                <!-- Fill bar -->
+                                <div id="bar-brake-fill" class="w-full bg-gradient-to-t from-rose-600 via-rose-500 to-amber-400 transition-all duration-75" style="height: 0%"></div>
+                                <!-- Ideal Reference Target Line -->
+                                <div id="bar-brake-ideal" class="absolute left-0 right-0 h-1 bg-cyan-300 shadow-[0_0_8px_#22d3ee] pointer-events-none transition-all duration-75" style="bottom: 0%"></div>
+                                <!-- Interactive Vertical Range Overlay for Mouse Drag -->
+                                <input id="slider-brake" type="range" min="0" max="100" value="0"
+                                    oninput="onSliderPedal('brake', this.value)"
+                                    onchange="onSliderRelease('brake')"
+                                    class="pedal-slider absolute inset-0 w-full h-full opacity-0 cursor-ns-resize"
+                                    style="writing-mode: bt-lr; -webkit-appearance: slider-vertical;"
+                                    title="Drag vertically to modulate brake pressure">
+                            </div>
+                            <span class="text-[10px] font-bold mono text-rose-400">BRAKE</span>
+                        </div>
+
+                        <!-- THROTTLE BAR + SLIDER -->
+                        <div class="flex flex-col items-center h-full justify-between w-1/2">
+                            <span id="gas-pct-label" class="text-xs font-extrabold mono text-emerald-400">0%</span>
+                            <div class="relative w-10 flex-1 bg-slate-950 rounded-lg border border-slate-800 overflow-hidden my-1 flex items-end">
+                                <!-- Fill bar -->
+                                <div id="bar-gas-fill" class="w-full bg-gradient-to-t from-emerald-600 to-emerald-400 transition-all duration-75" style="height: 0%"></div>
+                                <!-- Ideal Reference Target Line -->
+                                <div id="bar-gas-ideal" class="absolute left-0 right-0 h-1 bg-cyan-300 shadow-[0_0_8px_#22d3ee] pointer-events-none transition-all duration-75" style="bottom: 0%"></div>
+                                <!-- Interactive Vertical Range Overlay -->
+                                <input id="slider-gas" type="range" min="0" max="100" value="0"
+                                    oninput="onSliderPedal('gas', this.value)"
+                                    onchange="onSliderRelease('gas')"
+                                    class="pedal-slider absolute inset-0 w-full h-full opacity-0 cursor-ns-resize"
+                                    style="writing-mode: bt-lr; -webkit-appearance: slider-vertical;"
+                                    title="Drag vertically to modulate throttle">
+                            </div>
+                            <span class="text-[10px] font-bold mono text-emerald-400">GAS</span>
+                        </div>
+                    </div>
+
+                    <div class="text-[10px] text-slate-400 text-center leading-tight">
+                        Match the <span class="text-cyan-300 font-bold">cyan target bars</span> through the corner!
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. LIVE TELEMETRY TRACE GRAPH (BRAKE / GAS / SPEED vs DISTANCE) -->
+            <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5 flex flex-col h-[175px] shrink-0">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300 mono">Telemetry Trace (Player vs. Ideal Dashed)</span>
+                    <div class="flex items-center gap-2 text-[9px] mono">
+                        <span class="text-rose-400">■ Brake</span>
+                        <span class="text-emerald-400">■ Gas</span>
+                        <span class="text-cyan-300">■ Speed</span>
+                    </div>
+                </div>
+                <div class="relative flex-1 bg-slate-950 rounded-lg border border-slate-800/90 overflow-hidden">
+                    <canvas id="traceCanvas" class="w-full h-full block"></canvas>
+                </div>
+            </div>
+
+            <!-- 4. PHASE PROGRESS & QUICK COACHING CHECKLIST -->
+            <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5">
+                <div class="flex items-center justify-between text-[10px] mono uppercase text-slate-400 mb-1.5">
+                    <span>Corner Phase Sequence</span>
+                    <span id="hud-progress-pct" class="text-cyan-400 font-bold">0% Track</span>
+                </div>
+                <div class="grid grid-cols-4 gap-1 text-center text-[10px] font-bold mono">
+                    <div id="step-1" class="py-1 px-1 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 truncate">1.100% BRAKE</div>
+                    <div id="step-2" class="py-1 px-1 rounded bg-slate-800 text-slate-400 border border-slate-700 truncate">2.TRAIL OFF</div>
+                    <div id="step-3" class="py-1 px-1 rounded bg-slate-800 text-slate-400 border border-slate-700 truncate">3.CLIP APEX</div>
+                    <div id="step-4" class="py-1 px-1 rounded bg-slate-800 text-slate-400 border border-slate-700 truncate">4.ROLL GAS</div>
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <!-- EDUCATIONAL MODAL: BEFORE / AT / AFTER APEX & TRAIL BRAKING GUIDE -->
+    <div id="theory-modal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-[#111622] border border-slate-700 rounded-2xl max-w-3xl w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                <div>
+                    <span class="text-xs font-bold uppercase tracking-widest text-cyan-400 mono">MOTORSPORTS DRIVER ACADEMY</span>
+                    <h2 class="text-xl font-extrabold text-white mt-0.5">How to Modulate Brake & Gas: Early vs. Geometric vs. Late Apex</h2>
+                </div>
+                <button onclick="toggleTheoryModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold">✕</button>
+            </div>
+
+            <!-- 3 Phases of Pedal Modulation -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+                <div class="bg-slate-900 border border-rose-500/30 rounded-xl p-3.5">
+                    <div class="text-xs font-extrabold text-rose-400 mono uppercase mb-1">Phase 1: Before Turn-In</div>
+                    <div class="text-sm font-bold text-white mb-1">100% Threshold Braking</div>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Hit the brake <strong class="text-white">hardest in a straight line</strong> (between the 120m and 70m boards). 100% of the tire's traction budget is used for longitudinal deceleration.
+                    </p>
+                </div>
+                <div class="bg-slate-900 border border-amber-500/30 rounded-xl p-3.5">
+                    <div class="text-xs font-extrabold text-amber-400 mono uppercase mb-1">Phase 2: Turn-In to Apex</div>
+                    <div class="text-sm font-bold text-white mb-1">Trail Braking (Bleed Off)</div>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        As you turn the wheel toward the apex, <strong class="text-amber-300">progressively release the brake (e.g., 70% → 40% → 0%)</strong>. Keeping slight brake pressure pins weight on the front tires so the car rotates without understeering!
+                    </p>
+                </div>
+                <div class="bg-slate-900 border border-emerald-500/30 rounded-xl p-3.5">
+                    <div class="text-xs font-extrabold text-emerald-400 mono uppercase mb-1">Phase 3: At & After Apex</div>
+                    <div class="text-sm font-bold text-white mb-1">Unwind & Progressive Gas</div>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Reach <strong class="text-cyan-300">0% brake at the Apex</strong>. As you pass the clipping point and unwind the steering wheel, squeeze the throttle smoothly (<strong class="text-emerald-300">30% → 70% → 100%</strong>).
+                    </p>
+                </div>
+            </div>
+
+            <!-- Comparison of the 3 Apex Lines -->
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-400 mono mb-2.5">Why Apex Timing + Road Shape Dictate Your Pedals</h3>
+            <div class="space-y-2.5 mb-5">
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-start gap-3">
+                    <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold mono shrink-0">LATE APEX</span>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        <strong class="text-white">Best for Corner Exit & Decreasing Radius:</strong> You brake slightly deeper and turn in later, clipping the inside kerb <em>past</em> the midpoint of the corner. Essential for <strong>Decreasing Radius</strong> turns and corners preceding a <strong>Long Straight</strong>.
+                    </p>
+                </div>
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-start gap-3">
+                    <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold mono shrink-0">GEOMETRIC / INCREASING</span>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        <strong class="text-white">High Mid-Corner Momentum:</strong> Works best in <strong>45° Sweepers</strong> and <strong>Increasing Radius</strong> corners (like Monza's Parabolica) where the road naturally opens up on exit, letting you roll onto 100% gas early.
+                    </p>
+                </div>
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-start gap-3">
+                    <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-bold mono shrink-0">DOUBLE APEX</span>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        <strong class="text-white">Two Clipping Points (A1 & A2):</strong> Clip the first apex (A1), let the car drift mid-track while breathing on the throttle/trail-brake to rotate, then clip the second exit apex (A2) for full throttle launch!
+                    </p>
+                </div>
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-start gap-3">
+                    <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-bold mono shrink-0">EARLY APEX TRAP</span>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        <strong class="text-white">The Novice Mistake:</strong> Turning in too early clips the kerb before mid-corner. The corner radius tightens <em>after</em> the apex, forcing you to slam the brakes or lift off the gas at corner exit to avoid understeering off-track!
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="toggleTheoryModal()" class="px-5 py-2 rounded-xl text-xs font-extrabold bg-cyan-400 hover:bg-cyan-300 text-slate-950 transition">
+                    GOT IT — BACK TO TRACK
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /***********************************************************************
+         * APEX LAB v3.5: MULTI-DIMENSIONAL PROCEDURAL CIRCUIT & TELEMETRY ENGINE
+         * ---------------------------------------------------------------------
+         * Supports any combination of:
+         * 1. Apex Line: 'late' | 'geometric' | 'early'
+         * 2. Turn Angle: 45° | 90° | 135° | 180°
+         * 3. Road Shape: 'constant' | 'decreasing' | 'increasing' | 'double'
+         * 4. Road Length: 'short' | 'medium' | 'long'
+         ***********************************************************************/
+
+        const trackCanvas = document.getElementById('trackCanvas');
+        const ctx = trackCanvas.getContext('2d');
+        const ggCanvas = document.getElementById('ggCanvas');
+        const ggCtx = ggCanvas.getContext('2d');
+        const traceCanvas = document.getElementById('traceCanvas');
+        const traceCtx = traceCanvas.getContext('2d');
+
+        // Dynamic Camera Framing State
+        let viewScale = 1;
+        let viewOffsetX = 0;
+        let viewOffsetY = 0;
+        let trackBounds = { minX: 0, maxX: 1000, minY: 0, maxY: 700 };
+
+        const TRACK_HALF_WIDTH = 66; // 132 world units total track width
+
+        // Active Configuration State
+        let currentApexMode = 'late'; // 'late' | 'geometric' | 'early'
+        let trackConfig = {
+            angle: 90,           // 45 | 90 | 135 | 180
+            shape: 'constant',   // 'constant' | 'decreasing' | 'increasing' | 'double'
+            length: 'medium'     // 'short' | 'medium' | 'long'
+        };
+
+        let autoSteerMode = true;
+        let showGhost = true;
+
+        // Famous Corner Presets
+        const CORNER_PRESETS = {
+            standard_90:        { angle: 90,  shape: 'constant',   length: 'medium', defaultApex: 'late' },
+            decreasing_hairpin: { angle: 180, shape: 'decreasing', length: 'long',   defaultApex: 'late' },
+            double_apex_sweeper:{ angle: 135, shape: 'double',     length: 'medium', defaultApex: 'late' },
+            monza_parabolica:   { angle: 135, shape: 'increasing', length: 'long',   defaultApex: 'geometric' },
+            fast_kink:          { angle: 45,  shape: 'constant',   length: 'long',   defaultApex: 'geometric' },
+            tight_shootout:     { angle: 135, shape: 'decreasing', length: 'short',  defaultApex: 'late' },
+            hairpin_long:       { angle: 180, shape: 'constant',   length: 'long',   defaultApex: 'late' }
+        };
+
+        // Procedural Track Centerline Spine & Computed Racing Lines
+        let trackSpine = [];       // Dense array of { x, y, s, dist, heading, curvature, nx, ny, isCorner, cornerT }
+        let cornerStartIdx = 0;
+        let cornerEndIdx = 0;
+        let racingLines = {};      // Keyed by 'late', 'geometric', 'early'
+
+        /**
+         * Builds the Procedural Track Centerline Spine and Left/Right Boundaries
+         * for the active (Turn Angle + Road Shape + Road Length) combination,
+         * then computes the 3 Apex Racing Lines (Late, Geometric, Early) inside the track!
+         */
+        function buildProceduralTrackAndLines() {
+            const totalAngleRad = (trackConfig.angle * Math.PI) / 180;
+
+            // 1. Entry & Exit Straight Lengths based on Road Length setting
+            const lengthMap = {
+                short:  { entry: 240, exit: 250, launchSpeed: 132 },
+                medium: { entry: 340, exit: 370, launchSpeed: 148 },
+                long:   { entry: 470, exit: 510, launchSpeed: 168 }
+            };
+            const lenCfg = lengthMap[trackConfig.length];
+
+            // Base arc length of the corner section scales with angle
+            const baseRadius = trackConfig.angle === 45 ? 230 : trackConfig.angle === 90 ? 185 : trackConfig.angle === 135 ? 165 : 150;
+            const cornerSteps = Math.round(140 * (trackConfig.angle / 90));
+
+            // Build curvature weight profile w(t) for t in [0..1] across the corner based on Road Shape
+            const weights = [];
+            let weightSum = 0;
+            for (let i = 0; i < cornerSteps; i++) {
+                const t = i / (cornerSteps - 1);
+                let w = 1.0;
+                if (trackConfig.shape === 'constant') {
+                    w = 1.0;
+                } else if (trackConfig.shape === 'decreasing') {
+                    // Gently turns at entry, tightens sharply in second half!
+                    w = 0.42 + 1.35 * Math.pow(t, 1.35);
+                } else if (trackConfig.shape === 'increasing') {
+                    // Sharpest turn at entry, opens up smoothly toward exit!
+                    w = 1.65 - 1.28 * Math.pow(t, 0.85);
+                } else if (trackConfig.shape === 'double') {
+                    // Double Apex: Two high-curvature turn zones separated by a straighter mid-corner valley!
+                    const peak1 = Math.exp(-Math.pow((t - 0.24) / 0.16, 2));
+                    const peak2 = Math.exp(-Math.pow((t - 0.77) / 0.16, 2));
+                    w = 0.22 + 1.35 * (peak1 + peak2);
+                }
+                weights.push(w);
+                weightSum += w;
+            }
+
+            // Total arc length of corner
+            const shapeArcMultiplier = trackConfig.shape === 'double' ? 1.26 : 1.0;
+            const cornerArcLen = baseRadius * totalAngleRad * shapeArcMultiplier;
+            const dsCorner = cornerArcLen / cornerSteps;
+
+            trackSpine = [];
+            let curX = 200;
+            let curY = 650;
+            let curHeading = -Math.PI / 2; // Pointing straight up (North)
+            let cumDist = 0;
+
+            // Helper to push a spine point with normal vector (pointing right/inside of right-hand corner)
+            function pushSpinePt(x, y, heading, curvature, isCorner, cornerT) {
+                const nx = -Math.sin(heading); // Right-hand normal
+                const ny = Math.cos(heading);
+                trackSpine.push({
+                    x, y, heading, curvature,
+                    nx, ny,
+                    dist: cumDist,
+                    isCorner,
+                    cornerT
+                });
+            }
+
+            // A. Generate Entry Straight
+            const entrySteps = Math.round(lenCfg.entry / 4);
+            const dsEntry = lenCfg.entry / entrySteps;
+            for (let i = 0; i < entrySteps; i++) {
+                pushSpinePt(curX, curY, curHeading, 0, false, -1);
+                curY -= dsEntry;
+                cumDist += dsEntry;
+            }
+
+            cornerStartIdx = trackSpine.length;
+
+            // B. Generate Corner Section with Parametric Curvature Profile
+            for (let i = 0; i < cornerSteps; i++) {
+                const t = i / (cornerSteps - 1);
+                const dTheta = totalAngleRad * (weights[i] / weightSum);
+                const instCurvature = dTheta / dsCorner;
+                curHeading += dTheta * 0.5;
+                pushSpinePt(curX, curY, curHeading, instCurvature, true, t);
+                curX += Math.cos(curHeading) * dsCorner;
+                curY += Math.sin(curHeading) * dsCorner;
+                curHeading += dTheta * 0.5;
+                cumDist += dsCorner;
+            }
+
+            cornerEndIdx = trackSpine.length - 1;
+
+            // C. Generate Exit Straight
+            const exitSteps = Math.round(lenCfg.exit / 4);
+            const dsExit = lenCfg.exit / exitSteps;
+            for (let i = 0; i <= exitSteps; i++) {
+                pushSpinePt(curX, curY, curHeading, 0, false, 2);
+                curX += Math.cos(curHeading) * dsExit;
+                curY += Math.sin(curHeading) * dsExit;
+                cumDist += dsExit;
+            }
+
+            // Normalize spine s [0..1] and compute bounding box for camera auto-fit
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            const totalSpineDist = trackSpine[trackSpine.length - 1].dist;
+            trackSpine.forEach(pt => {
+                pt.s = pt.dist / totalSpineDist;
+                minX = Math.min(minX, pt.x - TRACK_HALF_WIDTH - 65);
+                maxX = Math.max(maxX, pt.x + TRACK_HALF_WIDTH + 65);
+                minY = Math.min(minY, pt.y - TRACK_HALF_WIDTH - 65);
+                maxY = Math.max(maxY, pt.y + TRACK_HALF_WIDTH + 65);
+            });
+            trackBounds = { minX, maxX, minY, maxY };
+
+            // 2. Build the 3 Racing Lines (Late Apex, Geometric Apex, Early Apex)
+            // Using lateral offset d(s) from the centerline:
+            //   d = -52 (wide left on outside of right-hand corner)
+            //   d = +52 (tight right clipping the inside apex kerb)
+            const cornerStartS = trackSpine[cornerStartIdx].s;
+            const cornerEndS = trackSpine[cornerEndIdx].s;
+            const cornerSpanS = cornerEndS - cornerStartS;
+
+            const modes = ['late', 'geometric', 'early'];
+            modes.forEach(modeKey => {
+                buildSingleRacingLine(modeKey, cornerStartS, cornerEndS, cornerSpanS, lenCfg.launchSpeed);
+            });
+
+            updateCameraTransform();
+            updateDynamicBannerAndUI();
+        }
+
+        /**
+         * Builds a specific Racing Line ('late', 'geometric', or 'early') and its Ideal Brake/Gas/Speed Telemetry
+         * adapted to the current Turn Angle, Road Shape, and Straight Length.
+         */
+        function buildSingleRacingLine(modeKey, cornerStartS, cornerEndS, cornerSpanS, launchSpeed) {
+            const outsideOffset = -51; // Left edge of asphalt
+            const insideOffset = 51;   // Right inside kerb clipping edge
+
+            // Determine where the Apex Clipping Point(s) occur in normalized cornerT [0..1]
+            let apexT1 = 0.50;
+            let apexT2 = null; // Used when Road Shape === 'double'
+            let turnInCornerT = -0.05; // Relative to cornerStartS
+            let trackOutCornerT = 1.08;
+
+            if (trackConfig.shape === 'double') {
+                // Double Apex has 2 inside clipping points (A1 & A2) with a mid-corner drift out
+                if (modeKey === 'late') {
+                    turnInCornerT = -0.02;
+                    apexT1 = 0.28;
+                    apexT2 = 0.82; // Deeper second apex for optimal straightaway launch
+                    trackOutCornerT = 1.04;
+                } else if (modeKey === 'geometric') {
+                    turnInCornerT = -0.06;
+                    apexT1 = 0.24;
+                    apexT2 = 0.76;
+                    trackOutCornerT = 1.10;
+                } else {
+                    // Early apex dives in too early on both A1 and A2, pinching exit!
+                    turnInCornerT = -0.14;
+                    apexT1 = 0.17;
+                    apexT2 = 0.65;
+                    trackOutCornerT = 0.96;
+                }
+            } else {
+                // Single Apex (Constant, Decreasing, or Increasing Radius)
+                const shapeShift = trackConfig.shape === 'decreasing' ? 0.10 : trackConfig.shape === 'increasing' ? -0.06 : 0.0;
+                if (modeKey === 'late') {
+                    turnInCornerT = 0.02 + shapeShift * 0.4;
+                    apexT1 = Math.min(0.76, 0.63 + shapeShift);
+                    trackOutCornerT = 1.02;
+                } else if (modeKey === 'geometric') {
+                    turnInCornerT = -0.06;
+                    apexT1 = 0.50 + shapeShift * 0.5;
+                    trackOutCornerT = 1.09;
+                } else {
+                    // Early Apex: turns in prematurely, clips at ~28% of corner, then gets pushed toward outside exit!
+                    turnInCornerT = -0.15;
+                    apexT1 = Math.max(0.22, 0.29 + shapeShift * 0.3);
+                    trackOutCornerT = 0.95;
+                }
+            }
+
+            // Smooth cosine interpolation helper
+            function cosineInterp(a, b, t) {
+                const clamped = Math.max(0, Math.min(1, t));
+                const mu = (1 - Math.cos(clamped * Math.PI)) * 0.5;
+                return a * (1 - mu) + b * mu;
+            }
+
+            // Generate raw points by displacing trackSpine along normal vector
+            const rawPts = [];
+            for (let i = 0; i < trackSpine.length; i++) {
+                const sp = trackSpine[i];
+                // Normalized corner progress cT (0 at cornerStart, 1 at cornerEnd)
+                const cT = (sp.s - cornerStartS) / cornerSpanS;
+                let latOffset = outsideOffset;
+
+                if (trackConfig.shape === 'double') {
+                    const midValleyT = (apexT1 + apexT2) * 0.5;
+                    const midValleyOffset = modeKey === 'late' ? -16 : modeKey === 'geometric' ? -24 : -8;
+                    if (cT <= turnInCornerT) {
+                        latOffset = outsideOffset;
+                    } else if (cT <= apexT1) {
+                        latOffset = cosineInterp(outsideOffset, insideOffset, (cT - turnInCornerT) / (apexT1 - turnInCornerT));
+                    } else if (cT <= midValleyT) {
+                        latOffset = cosineInterp(insideOffset, midValleyOffset, (cT - apexT1) / (midValleyT - apexT1));
+                    } else if (cT <= apexT2) {
+                        latOffset = cosineInterp(midValleyOffset, insideOffset, (cT - midValleyT) / (apexT2 - midValleyT));
+                    } else if (cT <= trackOutCornerT) {
+                        latOffset = cosineInterp(insideOffset, outsideOffset, (cT - apexT2) / (trackOutCornerT - apexT2));
+                    } else {
+                        latOffset = outsideOffset;
+                    }
+                } else {
+                    if (cT <= turnInCornerT) {
+                        latOffset = outsideOffset;
+                    } else if (cT <= apexT1) {
+                        latOffset = cosineInterp(outsideOffset, insideOffset, (cT - turnInCornerT) / (apexT1 - turnInCornerT));
+                    } else if (cT <= trackOutCornerT) {
+                        // Early apex pinches toward outside edge earlier and stays pinned against outside kerb
+                        const exitTarget = modeKey === 'early' ? outsideOffset - 5 : outsideOffset;
+                        latOffset = cosineInterp(insideOffset, exitTarget, (cT - apexT1) / (trackOutCornerT - apexT1));
+                    } else {
+                        latOffset = outsideOffset;
+                    }
+                }
+
+                rawPts.push({
+                    x: sp.x + sp.nx * latOffset,
+                    y: sp.y + sp.ny * latOffset,
+                    cT: cT,
+                    spineIdx: i
+                });
+            }
+
+            // Smooth the generated racing line coordinates with a 5-pass moving average filter so curvature is C2 continuous
+            for (let pass = 0; pass < 5; pass++) {
+                for (let i = 2; i < rawPts.length - 2; i++) {
+                    rawPts[i].x = (rawPts[i - 1].x + rawPts[i].x * 2 + rawPts[i + 1].x) * 0.25;
+                    rawPts[i].y = (rawPts[i - 1].y + rawPts[i].y * 2 + rawPts[i + 1].y) * 0.25;
+                }
+            }
+
+            // Compute distance, normalized s, heading, and true geometric curvature along the racing line
+            let totalLen = 0;
+            rawPts[0].dist = 0;
+            for (let i = 1; i < rawPts.length; i++) {
+                totalLen += Math.hypot(rawPts[i].x - rawPts[i - 1].x, rawPts[i].y - rawPts[i - 1].y);
+                rawPts[i].dist = totalLen;
+            }
+
+            for (let i = 0; i < rawPts.length; i++) {
+                rawPts[i].s = rawPts[i].dist / totalLen;
+                const prev = rawPts[Math.max(0, i - 2)];
+                const next = rawPts[Math.min(rawPts.length - 1, i + 2)];
+                rawPts[i].heading = Math.atan2(next.y - prev.y, next.x - prev.x);
+            }
+
+            let maxCurvature = 0.001;
+            for (let i = 0; i < rawPts.length; i++) {
+                const i0 = Math.max(0, i - 5);
+                const i1 = Math.min(rawPts.length - 1, i + 5);
+                let dTheta = rawPts[i1].heading - rawPts[i0].heading;
+                while (dTheta > Math.PI) dTheta -= Math.PI * 2;
+                while (dTheta < -Math.PI) dTheta += Math.PI * 2;
+                const ds = Math.max(1, rawPts[i1].dist - rawPts[i0].dist);
+                rawPts[i].curvature = dTheta / ds;
+                maxCurvature = Math.max(maxCurvature, Math.abs(rawPts[i].curvature));
+            }
+
+            // Find key normalized s positions along the racing line
+            function findSForCornerT(targetCT) {
+                let best = rawPts[0];
+                let minDiff = Infinity;
+                for (const p of rawPts) {
+                    const diff = Math.abs(p.cT - targetCT);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        best = p;
+                    }
+                }
+                return best;
+            }
+
+            const turnInPt = findSForCornerT(turnInCornerT);
+            const apex1Pt = findSForCornerT(apexT1);
+            const apex2Pt = apexT2 !== null ? findSForCornerT(apexT2) : null;
+            const primaryApexPt = apex2Pt ? apex2Pt : apex1Pt; // Final exit apex governs full throttle launch
+            const trackOutPt = findSForCornerT(trackOutCornerT);
+
+            // Calculate Physics-Based Corner Speeds & Braking Zone Length based on Turn Angle, Shape, and Straight Length
+            const angleFactor = trackConfig.angle === 45 ? 1.38 : trackConfig.angle === 90 ? 1.0 : trackConfig.angle === 135 ? 0.84 : 0.72;
+            const shapeMinSpdMod = trackConfig.shape === 'decreasing' ? 0.88 : trackConfig.shape === 'increasing' ? 1.08 : 0.96;
+            const modeMinSpd = modeKey === 'geometric' ? 93 : modeKey === 'late' ? 88 : 80;
+            const minApexSpeedKmh = Math.round(Math.min(142, Math.max(58, modeMinSpd * angleFactor * shapeMinSpdMod)));
+
+            // How early before Turn-In must the driver hit 100% threshold brakes?
+            const decelNeeded = Math.max(18, (launchSpeed + 16) - minApexSpeedKmh);
+            const brakeZoneSpanS = Math.min(turnInPt.s - 0.05, Math.max(0.06, (decelNeeded / 105) * 0.165));
+            const brakeStartS = Math.max(0.05, turnInPt.s - brakeZoneSpanS);
+            const turnInS = turnInPt.s;
+            const apexProgressS = primaryApexPt.s;
+
+            // Throttle pickup & Full throttle s positions
+            let throttleStartS = apexProgressS - 0.02;
+            let fullThrottleS = apexProgressS + 0.09;
+
+            if (trackConfig.shape === 'increasing') {
+                // Opens up on exit -> earlier throttle commitment!
+                throttleStartS = apexProgressS - 0.04;
+                fullThrottleS = apexProgressS + 0.06;
+            } else if (trackConfig.shape === 'decreasing') {
+                // Tightens late -> must trail-brake deeper and wait until late apex to floor it!
+                throttleStartS = apexProgressS;
+                fullThrottleS = apexProgressS + 0.08;
+            }
+
+            if (modeKey === 'early') {
+                // Early Apex trap: Car is still turning sharply after the apex, delaying full throttle!
+                throttleStartS = apex1Pt.s + 0.11;
+                fullThrottleS = Math.min(0.88, trackOutPt.s + 0.04);
+            } else if (modeKey === 'geometric') {
+                throttleStartS = apexProgressS;
+                fullThrottleS = apexProgressS + 0.13;
+            }
+
+            // Target Exit Speed at Track-Out rewards Late Apex (and Geometric on Increasing Radius / 45° Sweeper)
+            const exitStraightBonus = trackConfig.length === 'long' ? 14 : trackConfig.length === 'medium' ? 0 : -10;
+            let baseTargetExit = 158 + exitStraightBonus + (trackConfig.angle === 45 ? 16 : trackConfig.angle === 180 ? -8 : 0);
+            if (modeKey === 'late') {
+                baseTargetExit += (trackConfig.shape === 'decreasing' ? 8 : 5);
+            } else if (modeKey === 'geometric') {
+                baseTargetExit += (trackConfig.shape === 'increasing' || trackConfig.angle === 45 ? 4 : -5);
+            } else {
+                baseTargetExit -= 16; // Early apex exit speed penalty
+            }
+            const targetExitSpeed = Math.round(baseTargetExit);
+
+            // Populate Ideal Brake, Trail-Brake, Gas, and Speed Telemetry at every point along the line
+            for (let i = 0; i < rawPts.length; i++) {
+                const p = rawPts[i];
+                const s = p.s;
+                let idealBrake = 0;
+                let idealGas = 0;
+                let phaseColor = '#10b981';
+
+                if (s < brakeStartS) {
+                    idealGas = 1.0;
+                    idealBrake = 0;
+                    phaseColor = '#10b981';
+                } else if (s >= brakeStartS && s < turnInS) {
+                    // Threshold straight-line braking (scaled for 45° sweeper vs 180° hairpin)
+                    const peakBrake = trackConfig.angle === 45 ? 0.65 : 0.98;
+                    idealBrake = peakBrake;
+                    idealGas = 0;
+                    phaseColor = '#ef4444';
+                } else if (trackConfig.shape === 'double' && s >= turnInS && s < apex2Pt.s) {
+                    // Double Apex Telemetry: Trail brake into A1 -> brief mid-corner maintenance throttle -> brush trail brake into A2!
+                    if (s < apex1Pt.s) {
+                        const t1 = (s - turnInS) / Math.max(0.01, apex1Pt.s - turnInS);
+                        idealBrake = Math.max(0, (1 - t1) * 0.78);
+                        idealGas = 0;
+                        phaseColor = '#f59e0b';
+                    } else if (s < (apex1Pt.s + apex2Pt.s) * 0.5) {
+                        idealBrake = 0;
+                        idealGas = 0.42; // Mid-corner maintenance throttle between A1 and A2
+                        phaseColor = '#10b981';
+                    } else {
+                        const midS = (apex1Pt.s + apex2Pt.s) * 0.5;
+                        const t2 = (s - midS) / Math.max(0.01, apex2Pt.s - midS);
+                        idealBrake = Math.sin(t2 * Math.PI) * 0.38; // Brush trail-brake to rotate nose into A2!
+                        idealGas = 0;
+                        phaseColor = '#f59e0b';
+                    }
+                } else if (s >= turnInS && s < apexProgressS) {
+                    // Single Apex Trail Braking Profile (shaped by Constant / Decreasing / Increasing radius)
+                    const trailT = (s - turnInS) / Math.max(0.01, apexProgressS - turnInS);
+                    const startTrail = trackConfig.angle === 45 ? 0.52 : 0.84;
+                    if (trackConfig.shape === 'decreasing') {
+                        // Decreasing radius requires holding deeper trail-brake pressure further into the bend!
+                        idealBrake = Math.max(0, Math.pow(1 - trailT, 0.65) * startTrail);
+                    } else if (trackConfig.shape === 'increasing') {
+                        // Increasing radius bleeds off brake quickly
+                        idealBrake = Math.max(0, Math.pow(1 - trailT, 1.45) * startTrail);
+                    } else {
+                        idealBrake = Math.max(0, (1 - trailT) * startTrail);
+                    }
+                    idealGas = 0;
+                    phaseColor = trailT < 0.85 ? '#f59e0b' : '#06b6d4';
+                } else if (s >= apexProgressS && s < throttleStartS) {
+                    // Post-apex pinch zone (especially severe on Early Apex)
+                    idealBrake = modeKey === 'early' ? 0.22 : 0;
+                    idealGas = modeKey === 'early' ? 0.0 : 0.18;
+                    phaseColor = '#06b6d4';
+                } else if (s >= throttleStartS && s < fullThrottleS) {
+                    const gasRamp = (s - throttleStartS) / Math.max(0.01, fullThrottleS - throttleStartS);
+                    idealGas = Math.min(1, 0.22 + 0.78 * gasRamp);
+                    idealBrake = 0;
+                    phaseColor = '#10b981';
+                } else {
+                    idealGas = 1.0;
+                    idealBrake = 0;
+                    phaseColor = '#10b981';
+                }
+
+                // Reference Speed Profile (km/h)
+                let idealSpeed = launchSpeed;
+                const peakEntrySpd = launchSpeed + 16;
+                if (s < brakeStartS) {
+                    idealSpeed = launchSpeed + (s / Math.max(0.01, brakeStartS)) * 16;
+                } else if (s < apexProgressS) {
+                    const decelT = (s - brakeStartS) / Math.max(0.01, apexProgressS - brakeStartS);
+                    idealSpeed = peakEntrySpd - (peakEntrySpd - minApexSpeedKmh) * Math.pow(decelT, 0.78);
+                } else {
+                    const accelT = (s - apexProgressS) / Math.max(0.01, 1 - apexProgressS);
+                    idealSpeed = minApexSpeedKmh + (targetExitSpeed + 10 - minApexSpeedKmh) * Math.pow(accelT, 0.72);
+                }
+
+                p.idealBrake = idealBrake;
+                p.idealGas = idealGas;
+                p.idealSpeed = idealSpeed;
+                p.phaseColor = phaseColor;
+            }
+
+            racingLines[modeKey] = {
+                points: rawPts,
+                totalLength: totalLen,
+                turnInPoint: turnInPt,
+                apexPoint: primaryApexPt,
+                apex1Point: apex1Pt,
+                apex2Point: apex2Pt,
+                trackOutPoint: trackOutPt,
+                launchSpeed: launchSpeed,
+                meta: {
+                    id: modeKey,
+                    targetExitSpeed,
+                    apexProgressS,
+                    apex1ProgressS: apex1Pt.s,
+                    brakeStartS,
+                    turnInS,
+                    throttleStartS,
+                    fullThrottleS,
+                    minApexSpeedKmh
+                }
+            };
+        }
+
+        /**
+         * Updates the Viewport Scale & Offset so any Turn Angle (45°-180°) and Straight Length fits cleanly
+         */
+        function updateCameraTransform() {
+            const rect = trackCanvas.parentElement.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+            const padX = 42;
+            const padY = 58;
+            const worldW = Math.max(400, trackBounds.maxX - trackBounds.minX);
+            const worldH = Math.max(350, trackBounds.maxY - trackBounds.minY);
+
+            const sx = (rect.width - padX * 2) / worldW;
+            const sy = (rect.height - padY * 2) / worldH;
+            viewScale = Math.min(sx, sy);
+
+            const centerWorldX = (trackBounds.minX + trackBounds.maxX) * 0.5;
+            const centerWorldY = (trackBounds.minY + trackBounds.maxY) * 0.5;
+            viewOffsetX = rect.width * 0.5 - centerWorldX * viewScale;
+            viewOffsetY = rect.height * 0.5 - centerWorldY * viewScale + 12;
+        }
+
+        /**
+         * Updates the Dynamic Top Banner & Coaching Lesson for the active combination
+         */
+        function updateDynamicBannerAndUI() {
+            const line = racingLines[currentApexMode];
+            const meta = line.meta;
+
+            const shapeNames = {
+                constant: 'CONSTANT RADIUS',
+                decreasing: 'DECREASING RADIUS (TIGHTENING)',
+                increasing: 'INCREASING RADIUS (OPENING)',
+                double: 'DOUBLE APEX (A1 + A2)'
+            };
+            const lengthNames = {
+                short: 'SHORT SHOOTOUT',
+                medium: 'MEDIUM CIRCUIT',
+                long: 'LONG STRAIGHT'
+            };
+
+            const modeTitlePrefix = currentApexMode === 'late' ? 'LATE APEX' : currentApexMode === 'geometric' ? 'GEOMETRIC APEX' : 'EARLY APEX';
+            document.getElementById('banner-title').textContent = `${modeTitlePrefix} // ${trackConfig.angle}° ${shapeNames[trackConfig.shape]}`;
+
+            const badge = document.getElementById('banner-badge');
+            const descEl = document.getElementById('banner-desc');
+
+            if (currentApexMode === 'late') {
+                badge.textContent = 'OPTIMAL EXIT';
+                badge.className = 'text-[10px] mono font-bold px-1.5 py-0.5 rounded border bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+                if (trackConfig.shape === 'decreasing') {
+                    descEl.innerHTML = `<strong>Decreasing Radius + Late Apex:</strong> Because this ${trackConfig.angle}° corner tightens sharply toward the end, you MUST hold <strong>extended trail-braking</strong> and delay your apex deep into the bend to avoid running off the exit!`;
+                } else if (trackConfig.shape === 'double') {
+                    descEl.innerHTML = `<strong>Double Apex (A1 & A2):</strong> Trail-brake into <strong>Apex 1</strong>, let the car drift mid-track with partial maintenance gas, brush the brake to rotate into <strong>Late Apex 2</strong>, then floor it!`;
+                } else {
+                    descEl.innerHTML = `Brake deeper on the <strong>${lengthNames[trackConfig.length].toLowerCase()}</strong> approach, trail-brake past mid-corner, and clip the late apex so you can straighten the wheel and hit <strong class="text-emerald-400">100% throttle early</strong>.`;
+                }
+            } else if (currentApexMode === 'geometric') {
+                const isIdealHere = trackConfig.shape === 'increasing' || trackConfig.angle === 45;
+                badge.textContent = isIdealHere ? 'HIGH MOMENTUM' : 'BALANCED ARC';
+                badge.className = `text-[10px] mono font-bold px-1.5 py-0.5 rounded border ${isIdealHere ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`;
+                if (trackConfig.shape === 'increasing') {
+                    descEl.innerHTML = `<strong>Increasing Radius Advantage:</strong> Because the ${trackConfig.angle}° corner opens up on exit, clipping the central apex carries maximum mid-corner speed (${meta.minApexSpeedKmh} km/h) while still allowing early full throttle!`;
+                } else {
+                    descEl.innerHTML = `Follows a smooth symmetrical arc through the ${trackConfig.angle}° bend. Carries high minimum speed (${meta.minApexSpeedKmh} km/h), but requires waiting slightly longer after the apex before committing to 100% gas.`;
+                }
+            } else {
+                badge.textContent = 'EXIT PINCH TRAP';
+                badge.className = 'text-[10px] mono font-bold px-1.5 py-0.5 rounded border bg-rose-500/20 text-rose-300 border-rose-500/30';
+                descEl.innerHTML = `<strong>The Early Apex Trap (${trackConfig.angle}°):</strong> Turning in too early clips the kerb before mid-corner. Watch how the radius tightens after the apex—hitting full gas at the apex will overload the Traction Circle and push you off-track!`;
+            }
+
+            document.getElementById('hud-target-exit').textContent = '/' + meta.targetExitSpeed;
+
+            // Highlight active dimension buttons
+            [45, 90, 135, 180].forEach(a => {
+                const btn = document.getElementById('cfg-angle-' + a);
+                if (btn) {
+                    btn.className = a === trackConfig.angle
+                        ? 'px-2 py-0.5 rounded text-[11px] font-bold mono transition bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                        : 'px-2 py-0.5 rounded text-[11px] font-bold mono transition text-slate-400 hover:text-white border border-transparent';
+                }
+            });
+            ['constant', 'decreasing', 'increasing', 'double'].forEach(s => {
+                const btn = document.getElementById('cfg-shape-' + s);
+                if (btn) {
+                    btn.className = s === trackConfig.shape
+                        ? 'px-2 py-0.5 rounded text-[11px] font-semibold transition bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                        : 'px-2 py-0.5 rounded text-[11px] font-semibold transition text-slate-400 hover:text-white border border-transparent';
+                }
+            });
+            ['short', 'medium', 'long'].forEach(l => {
+                const btn = document.getElementById('cfg-length-' + l);
+                if (btn) {
+                    btn.className = l === trackConfig.length
+                        ? 'px-2 py-0.5 rounded text-[11px] font-semibold transition bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                        : 'px-2 py-0.5 rounded text-[11px] font-semibold transition text-slate-400 hover:text-white border border-transparent';
+                }
+            });
+        }
+
+        // Configuration Change Handlers
+        function setTrackConfig(key, value) {
+            trackConfig[key] = value;
+            // Sync preset dropdown if it matches a known preset, otherwise mark as 'custom'
+            let matchedPreset = 'custom';
+            for (const [pKey, pVal] of Object.entries(CORNER_PRESETS)) {
+                if (pVal.angle === trackConfig.angle && pVal.shape === trackConfig.shape && pVal.length === trackConfig.length) {
+                    matchedPreset = pKey;
+                    break;
+                }
+            }
+            document.getElementById('select-preset').value = matchedPreset;
+            buildProceduralTrackAndLines();
+            resetRun();
+        }
+
+        function applyCornerPreset(presetKey) {
+            const p = CORNER_PRESETS[presetKey];
+            if (!p) return;
+            trackConfig.angle = p.angle;
+            trackConfig.shape = p.shape;
+            trackConfig.length = p.length;
+            currentApexMode = p.defaultApex || currentApexMode;
+            buildProceduralTrackAndLines();
+            setApexMode(currentApexMode);
+        }
+
+        function cycleNextPreset() {
+            const keys = Object.keys(CORNER_PRESETS);
+            const curVal = document.getElementById('select-preset').value;
+            const nextIdx = (keys.indexOf(curVal) + 1) % keys.length;
+            const nextKey = keys[nextIdx];
+            document.getElementById('select-preset').value = nextKey;
+            applyCornerPreset(nextKey);
+        }
+
+        // Player Car State & Ghost Car State
+        const player = {
+            x: 172,
+            y: 635,
+            heading: -Math.PI / 2,
+            speedKmh: 148,      // Launch rolling start so user hits braking zone immediately!
+            brakeInput: 0,
+            gasInput: 0,
+            steerInput: 0,      // -1..1
+            longG: 0,           // Longitudinal G (-brake, +accel)
+            latG: 0,            // Lateral G (cornering)
+            totalG: 0,          // Combined G relative to max traction circle (1.0 = limit)
+            frontWeightPct: 50, // Dynamic weight transfer (50% static, up to 72% under heavy braking, down to 36% under hard accel)
+            understeerSlip: 0,  // Lateral drift outward when totalG > 1.0 or early gas unloads front
+            s: 0,               // Progress [0..1] along active racing line
+            trail: [],          // Breadcrumb history for track drawing & telemetry graph
+            started: false,
+            finished: false,
+            offTrack: false,
+            elapsedTime: 0,
+            exitSpeedRecorded: null,
+            minCornerSpeed: 999,
+            // Diagnostic trackers
+            brakeStartSActual: null,
+            trailBrakeScoreSum: 0,
+            trailBrakeSamples: 0,
+            earlyFullGasBeforeApex: false,
+            throttlePickupS: null,
+            maxOvershootG: 0
+        };
+
+        const ghost = {
+            x: 172,
+            y: 635,
+            heading: -Math.PI / 2,
+            speedKmh: 148,
+            s: 0,
+            brake: 0,
+            gas: 0,
+            active: true
+        };
+
+        // Input State
+        const keys = {
+            w: false,
+            s: false,
+            a: false,
+            d: false,
+            shift: false
+        };
+        let activeBtnPedal = { type: null, target: 0 };
+        let sliderOverride = { brake: false, gas: false };
+        let touchSteerVal = 0;
+
+        // Keyboard Listeners
+        window.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'w' || e.key === 'ArrowUp') { keys.w = true; startRunIfNeeded(); }
+            if (k === 's' || e.key === 'ArrowDown') { keys.s = true; startRunIfNeeded(); }
+            if (k === 'a' || e.key === 'ArrowLeft') { keys.a = true; }
+            if (k === 'd' || e.key === 'ArrowRight') { keys.d = true; }
+            if (e.key === 'Shift') { keys.shift = true; startRunIfNeeded(); }
+            if (k === 'r' || e.key === ' ') {
+                e.preventDefault();
+                resetRun();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'w' || e.key === 'ArrowUp') keys.w = false;
+            if (k === 's' || e.key === 'ArrowDown') keys.s = false;
+            if (k === 'a' || e.key === 'ArrowLeft') keys.a = false;
+            if (k === 'd' || e.key === 'ArrowRight') keys.d = false;
+            if (e.key === 'Shift') keys.shift = false;
+        });
+
+        // Touch / Button Pedal Helpers
+        function startBtnPedal(type, val) {
+            startRunIfNeeded();
+            activeBtnPedal.type = type;
+            activeBtnPedal.target = val;
+        }
+        function stopBtnPedal(type) {
+            if (activeBtnPedal.type === type) {
+                activeBtnPedal.type = null;
+                activeBtnPedal.target = 0;
+            }
+        }
+        function setTouchSteer(val) {
+            touchSteerVal = val;
+        }
+        function onSliderPedal(type, val) {
+            startRunIfNeeded();
+            const norm = parseFloat(val) / 100;
+            if (type === 'brake') {
+                sliderOverride.brake = true;
+                player.brakeInput = norm;
+                player.gasInput = 0;
+            } else {
+                sliderOverride.gas = true;
+                player.gasInput = norm;
+                player.brakeInput = 0;
+            }
+        }
+        function onSliderRelease(type) {
+            sliderOverride[type] = false;
+        }
+
+        function startRunIfNeeded() {
+            if (!player.started && !player.finished) {
+                player.started = true;
+            }
+        }
+
+        // UI Mode & Toggle Handlers
+        function setApexMode(mode) {
+            currentApexMode = mode;
+
+            // Update desktop buttons
+            ['late', 'geometric', 'early'].forEach(m => {
+                const btn = document.getElementById('mode-' + m);
+                if (m === mode) {
+                    btn.className = 'px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40';
+                } else {
+                    btn.className = 'px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent';
+                }
+            });
+
+            updateDynamicBannerAndUI();
+            resetRun();
+        }
+
+        function switchNextApexMode() {
+            const order = ['late', 'geometric', 'early'];
+            const nextIdx = (order.indexOf(currentApexMode) + 1) % order.length;
+            setApexMode(order[nextIdx]);
+        }
+
+        function toggleSteerMode() {
+            autoSteerMode = !autoSteerMode;
+            const lbl = document.getElementById('steer-mode-label');
+            const touchSteer = document.getElementById('touch-steer-controls');
+            if (autoSteerMode) {
+                lbl.textContent = 'Mode: Pedals Only (Auto-Steer)';
+                touchSteer.classList.add('hidden');
+                touchSteer.classList.remove('flex');
+            } else {
+                lbl.textContent = 'Mode: Full Manual (WASD / Arrows)';
+                touchSteer.classList.remove('hidden');
+                touchSteer.classList.add('flex');
+            }
+            resetRun();
+        }
+
+        function toggleGhost() {
+            showGhost = !showGhost;
+            const btn = document.getElementById('btn-ghost');
+            const dot = document.getElementById('ghost-dot');
+            if (showGhost) {
+                btn.querySelector('span:last-child').textContent = 'AI Instructor Ghost: ON';
+                dot.className = 'w-2 h-2 rounded-full bg-cyan-400';
+            } else {
+                btn.querySelector('span:last-child').textContent = 'AI Instructor Ghost: OFF';
+                dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+            }
+        }
+
+        function toggleTheoryModal() {
+            const modal = document.getElementById('theory-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        /**
+         * Resets player & ghost car to entry straight for a fresh run
+         */
+        function resetRun() {
+            const line = racingLines[currentApexMode];
+            const startPt = line.points[2];
+            const launchSpd = line.launchSpeed || 148;
+
+            player.x = startPt.x;
+            player.y = startPt.y;
+            player.heading = startPt.heading;
+            player.speedKmh = launchSpd;
+            player.brakeInput = 0;
+            player.gasInput = 0;
+            player.steerInput = 0;
+            player.longG = 0;
+            player.latG = 0;
+            player.totalG = 0;
+            player.frontWeightPct = 50;
+            player.understeerSlip = 0;
+            player.s = 0;
+            player.trail = [];
+            player.started = false;
+            player.finished = false;
+            player.offTrack = false;
+            player.elapsedTime = 0;
+            player.exitSpeedRecorded = null;
+            player.minCornerSpeed = 999;
+
+            player.brakeStartSActual = null;
+            player.trailBrakeScoreSum = 0;
+            player.trailBrakeSamples = 0;
+            player.earlyFullGasBeforeApex = false;
+            player.throttlePickupS = null;
+            player.maxOvershootG = 0;
+
+            ghost.x = startPt.x;
+            ghost.y = startPt.y;
+            ghost.heading = startPt.heading;
+            ghost.speedKmh = launchSpd;
+            ghost.s = 0;
+            ghost.brake = 0;
+            ghost.gas = 1;
+
+            document.getElementById('coaching-modal').classList.add('hidden');
+            document.getElementById('hud-exit-speed').textContent = '--';
+            document.getElementById('live-coach-cue').textContent = `HOLD [W] OR [↑] TO LAUNCH (${trackConfig.angle}° ${trackConfig.shape.toUpperCase()})`;
+            document.getElementById('live-coach-cue').className = 'text-xs sm:text-sm font-extrabold mono text-cyan-300 tracking-tight';
+        }
+
+        /**
+         * Finds nearest point on the active racing line to (x, y)
+         */
+        function findNearestLinePoint(x, y, linePts) {
+            let bestIdx = 0;
+            let bestDistSq = Infinity;
+            for (let i = 0; i < linePts.length; i++) {
+                const dx = linePts[i].x - x;
+                const dy = linePts[i].y - y;
+                const d2 = dx * dx + dy * dy;
+                if (d2 < bestDistSq) {
+                    bestDistSq = d2;
+                    bestIdx = i;
+                }
+            }
+            return { point: linePts[bestIdx], index: bestIdx, dist: Math.sqrt(bestDistSq) };
+        }
+
+        /**
+         * Checks distance from the procedural track centerline spine to determine if the car is on asphalt, kerb, or off-track grass
+         */
+        function getDistanceFromTrackCenter(x, y) {
+            let minDistSq = Infinity;
+            for (let i = 0; i < trackSpine.length; i += 2) {
+                const dx = trackSpine[i].x - x;
+                const dy = trackSpine[i].y - y;
+                const d2 = dx * dx + dy * dy;
+                if (d2 < minDistSq) minDistSq = d2;
+            }
+            return Math.sqrt(minDistSq);
+        }
+
+        /**
+         * Core Physics & Telemetry Update Step (60Hz)
+         */
+        function updateSimulation(dt) {
+            const line = racingLines[currentApexMode];
+            const meta = line.meta;
+            const nearest = findNearestLinePoint(player.x, player.y, line.points);
+            const refPt = nearest.point;
+            player.s = refPt.s;
+
+            if (!player.started || player.finished) {
+                updateHUD(refPt);
+                return;
+            }
+
+            player.elapsedTime += dt;
+
+            // 1. Process Pedal Inputs (Smooth Progressive Modulation)
+            // Notice: In real trail braking, releasing the brake smoothly is essential.
+            if (!sliderOverride.brake && !sliderOverride.gas) {
+                const wantsGas = keys.w || activeBtnPedal.type === 'gas';
+                const wantsBrake = keys.s || activeBtnPedal.type === 'brake';
+                const wantsTrail = keys.shift;
+
+                if (wantsTrail) {
+                    // Dedicated Trail Brake key smoothly modulates toward ideal trail brake or 42%
+                    const targetTrail = (player.s >= meta.turnInS && player.s <= meta.apexProgressS)
+                        ? Math.max(0.2, refPt.idealBrake)
+                        : 0.45;
+                    player.brakeInput += (targetTrail - player.brakeInput) * Math.min(1, dt * 8);
+                    player.gasInput = Math.max(0, player.gasInput - dt * 6);
+                } else if (wantsBrake) {
+                    const targetB = activeBtnPedal.type === 'brake' ? activeBtnPedal.target : 1.0;
+                    // Fast attack on initial brake pedal hit, smooth modulation
+                    player.brakeInput = Math.min(targetB, player.brakeInput + dt * 4.2);
+                    player.gasInput = Math.max(0, player.gasInput - dt * 8.0);
+                } else {
+                    // Progressive bleed-off rate when releasing brake key (simulates smooth foot release across the trail-braking zone!)
+                    const releaseRate = (player.s >= meta.turnInS - 0.03 && player.s <= meta.apexProgressS + 0.04) ? 1.55 : 3.2;
+                    player.brakeInput = Math.max(0, player.brakeInput - dt * releaseRate);
+                }
+
+                if (wantsGas && !wantsBrake && !wantsTrail) {
+                    // Progressive throttle squeeze rate
+                    const squeezeRate = (player.s >= meta.apexProgressS - 0.02 && player.s <= meta.fullThrottleS) ? 1.85 : 3.0;
+                    player.gasInput = Math.min(1.0, player.gasInput + dt * squeezeRate);
+                } else if (!wantsGas) {
+                    player.gasInput = Math.max(0, player.gasInput - dt * 3.8);
+                }
+            }
+
+            document.getElementById('slider-brake').value = Math.round(player.brakeInput * 100);
+            document.getElementById('slider-gas').value = Math.round(player.gasInput * 100);
+
+            // 2. Longitudinal G & Dynamic Weight Transfer
+            // Braking max = -1.25G, Acceleration max = +0.68G
+            const dragG = -0.05 * (player.speedKmh / 160);
+            player.longG = (player.gasInput * 0.68) - (player.brakeInput * 1.22) + dragG;
+
+            // Dynamic Front Weight % (Static 50%; Braking shifts weight to nose -> increases front bite; Gas shifts weight rearward -> unloads front tires!)
+            player.frontWeightPct = Math.round(50 - player.longG * 16);
+
+            // Update Speed (km/h)
+            // Convert longG to speed change
+            const accelKmhPerSec = player.longG * 62;
+            player.speedKmh = Math.max(28, Math.min(205, player.speedKmh + accelKmhPerSec * dt));
+
+            // Convert km/h to world units per second
+            const worldUnitsPerSec = player.speedKmh * 1.55;
+
+            // 3. Cornering Curvature, Lateral G, and Kamm's Friction Circle Physics
+            let desiredCurvature = 0;
+
+            if (autoSteerMode) {
+                // Look-ahead point on the selected racing line
+                const lookAheadIdx = Math.min(line.points.length - 1, nearest.index + 10);
+                const targetPt = line.points[lookAheadIdx];
+                const angleToTarget = Math.atan2(targetPt.y - player.y, targetPt.x - player.x);
+                let headingErr = angleToTarget - player.heading;
+                while (headingErr > Math.PI) headingErr -= Math.PI * 2;
+                while (headingErr < -Math.PI) headingErr += Math.PI * 2;
+
+                desiredCurvature = refPt.curvature + (headingErr * 0.032);
+            } else {
+                // Full Manual Steering Mode
+                let manualSteer = 0;
+                if (keys.a || touchSteerVal < 0) manualSteer -= 1;
+                if (keys.d || touchSteerVal > 0) manualSteer += 1;
+                player.steerInput += (manualSteer - player.steerInput) * Math.min(1, dt * 7);
+                desiredCurvature = player.steerInput * 0.0088;
+            }
+
+            // Lateral G demand = v^2 * curvature (scaled for realistic G units)
+            const vNorm = player.speedKmh / 105;
+            const demandedLatG = (vNorm * vNorm) * (desiredCurvature * 155);
+
+            // Calculate Front Tire Grip Multiplier from Weight Transfer!
+            // Key Motorsports Physics Lesson:
+            // - Light-to-moderate trail braking (15%-55% brake) shifts weight forward, boosting front turn-in grip by +12%
+            // - Slamming 100% brake while turning saturates the tire (combined G exceeds circle -> lockup/understeer)
+            // - Flooring the gas while turning (>0.35 latG) unloads the front axle, cutting front turn-in grip and pushing wide!
+            let frontGripFactor = 1.0;
+            if (Math.abs(demandedLatG) > 0.25) {
+                if (player.brakeInput > 0.1 && player.brakeInput < 0.65) {
+                    frontGripFactor = 1.12; // Trail braking rotation benefit!
+                } else if (player.gasInput > 0.55 && player.s < meta.apexProgressS + 0.04) {
+                    frontGripFactor = 0.76; // Early gas before/at apex unloads front tires -> understeer push!
+                }
+            }
+
+            // Combined Tire Load (Kamm's Friction Circle)
+            const normLongG = player.longG / 1.22;
+            const normLatG = demandedLatG / (1.18 * frontGripFactor);
+            player.totalG = Math.hypot(normLongG, normLatG);
+
+            // If Total G exceeds 1.0 (outside the Friction Circle), the car cannot achieve the demanded curvature and scrubs wide toward the outside of the corner!
+            let actualCurvature = desiredCurvature;
+            let tireScrubbing = false;
+
+            if (player.totalG > 1.0) {
+                tireScrubbing = true;
+                player.maxOvershootG = Math.max(player.maxOvershootG, player.totalG);
+                const gripRatio = 1.0 / player.totalG;
+                // Car turns less than demanded (understeers wide toward outside of bend)
+                actualCurvature = desiredCurvature * Math.pow(gripRatio, 1.35);
+                // Scrubbing tires also bleeds off speed
+                player.speedKmh = Math.max(35, player.speedKmh - (player.totalG - 1.0) * 28 * dt);
+            }
+
+            player.latG = Math.max(-1.45, Math.min(1.45, demandedLatG));
+
+            // Advance Player Position
+            player.heading += actualCurvature * worldUnitsPerSec * dt;
+            player.x += Math.cos(player.heading) * worldUnitsPerSec * dt;
+            player.y += Math.sin(player.heading) * worldUnitsPerSec * dt;
+
+            // If in Pedals-Only mode and tire is within grip limit, gently pull toward line if previously pushed wide
+            if (autoSteerMode && !tireScrubbing && nearest.dist > 2) {
+                player.x += (refPt.x - player.x) * dt * 1.4;
+                player.y += (refPt.y - player.y) * dt * 1.4;
+            }
+
+            // 4. Record Telemetry & Diagnostic Metrics
+            if (player.brakeInput > 0.25 && player.brakeStartSActual === null && player.s > 0.08) {
+                player.brakeStartSActual = player.s;
+            }
+            if (player.s >= meta.turnInS && player.s <= meta.apexProgressS) {
+                const err = Math.abs(player.brakeInput - refPt.idealBrake);
+                player.trailBrakeScoreSum += Math.max(0, 1 - err * 1.6);
+                player.trailBrakeSamples++;
+                if (player.gasInput > 0.65 && player.s < meta.apexProgressS - 0.02) {
+                    player.earlyFullGasBeforeApex = true;
+                }
+            }
+            if (player.s >= meta.apexProgressS - 0.05 && player.s <= 0.68) {
+                player.minCornerSpeed = Math.min(player.minCornerSpeed, player.speedKmh);
+                if (player.gasInput > 0.25 && player.throttlePickupS === null && player.s >= meta.apexProgressS - 0.03) {
+                    player.throttlePickupS = player.s;
+                }
+            }
+
+            // Determine Trail Breadcrumb Color
+            let crumbColor = '#38bdf8'; // Blue coasting
+            if (tireScrubbing) {
+                crumbColor = '#e879f9'; // Purple/Magenta tire scrub / understeer
+            } else if (player.brakeInput > 0.65) {
+                crumbColor = '#ef4444'; // Red hard braking
+            } else if (player.brakeInput > 0.08) {
+                crumbColor = '#f59e0b'; // Amber trail braking
+            } else if (player.gasInput > 0.12) {
+                crumbColor = '#10b981'; // Green throttle
+            }
+
+            if (player.trail.length === 0 || Math.hypot(player.x - player.trail[player.trail.length - 1].x, player.y - player.trail[player.trail.length - 1].y) > 4) {
+                player.trail.push({
+                    x: player.x,
+                    y: player.y,
+                    s: player.s,
+                    brake: player.brakeInput,
+                    gas: player.gasInput,
+                    speed: player.speedKmh,
+                    color: crumbColor,
+                    scrub: tireScrubbing
+                });
+            }
+            // Check Exit Speed at Track-Out Marker
+            const trackOutS = line.trackOutPoint ? line.trackOutPoint.s : 0.72;
+            if (player.s >= trackOutS && player.exitSpeedRecorded === null) {
+                player.exitSpeedRecorded = Math.round(player.speedKmh);
+                document.getElementById('hud-exit-speed').textContent = player.exitSpeedRecorded;
+            }
+
+            // Check Off-Track Excursion
+            const centerOffset = getDistanceFromTrackCenter(player.x, player.y);
+            if (centerOffset > TRACK_HALF_WIDTH + 18) {
+                player.offTrack = true;
+                finishRun();
+                return;
+            }
+
+            // Check Finish Line (s >= 0.95)
+            if (player.s >= 0.95) {
+                if (player.exitSpeedRecorded === null) {
+                    player.exitSpeedRecorded = Math.round(player.speedKmh);
+                }
+                finishRun();
+                return;
+            }
+
+            // 5. Update AI Instructor Ghost Car along Ideal Reference
+            if (showGhost && ghost.s < 0.98) {
+                const ghostNearest = findNearestLinePoint(ghost.x, ghost.y, line.points);
+                const gPt = ghostNearest.point;
+                ghost.speedKmh = gPt.idealSpeed;
+                ghost.brake = gPt.idealBrake;
+                ghost.gas = gPt.idealGas;
+                const gUnitsPerSec = ghost.speedKmh * 1.55;
+                const nextIdx = Math.min(line.points.length - 1, ghostNearest.index + 4);
+                const targetG = line.points[nextIdx];
+                ghost.heading = Math.atan2(targetG.y - ghost.y, targetG.x - ghost.x);
+                ghost.x += Math.cos(ghost.heading) * gUnitsPerSec * dt;
+                ghost.y += Math.sin(ghost.heading) * gUnitsPerSec * dt;
+                ghost.s = gPt.s;
+            }
+
+            updateHUD(refPt);
+        }
+
+        /**
+         * Updates all Right-Hand HUD Gauges, Live Coaching Cues, and Phase Indicators
+         */
+        function updateHUD(refPt) {
+            const line = racingLines[currentApexMode];
+            const meta = line.meta;
+
+            // Speed & Gear
+            const spd = Math.round(player.speedKmh);
+            document.getElementById('hud-speed').textContent = spd;
+            const gear = spd < 75 ? 'G2' : spd < 115 ? 'G3' : spd < 150 ? 'G4' : 'G5';
+            document.getElementById('gear- readout').textContent = gear;
+
+            // Tire Load %
+            const loadPct = Math.round(player.totalG * 100);
+            const loadEl = document.getElementById('hud-tire-pct');
+            const stateEl = document.getElementById('hud-grip-state');
+            loadEl.textContent = loadPct + '%';
+            if (loadPct > 102) {
+                loadEl.className = 'text-2xl font-extrabold mono text-rose-400 tracking-tight';
+                stateEl.textContent = 'UNDERSTEER!';
+                stateEl.className = 'text-[9px] text-rose-400 font-bold animate-pulse';
+            } else if (loadPct >= 85) {
+                loadEl.className = 'text-2xl font-extrabold mono text-amber-300 tracking-tight';
+                stateEl.textContent = 'OPTIMAL LIMIT';
+                stateEl.className = 'text-[9px] text-amber-300 font-bold';
+            } else {
+                loadEl.className = 'text-2xl font-extrabold mono text-white tracking-tight';
+                stateEl.textContent = 'GRIP OK';
+                stateEl.className = 'text-[9px] text-emerald-400';
+            }
+
+            // Weight Transfer Pill
+            const wbPill = document.getElementById('weight-bias-pill');
+            wbPill.textContent = `Front Load: ${player.frontWeightPct}%`;
+            if (player.frontWeightPct >= 56) {
+                wbPill.className = 'text-[9px] mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300';
+            } else if (player.frontWeightPct <= 44) {
+                wbPill.className = 'text-[9px] mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300';
+            } else {
+                wbPill.className = 'text-[9px] mono px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300';
+            }
+
+            // Pedal Bars vs Ideal Reference
+            const bPct = Math.round(player.brakeInput * 100);
+            const gPct = Math.round(player.gasInput * 100);
+            document.getElementById('brake-pct-label').textContent = bPct + '%';
+            document.getElementById('gas-pct-label').textContent = gPct + '%';
+            document.getElementById('bar-brake-fill').style.height = bPct + '%';
+            document.getElementById('bar-gas-fill').style.height = gPct + '%';
+
+            const idealBPct = Math.round((refPt ? refPt.idealBrake : 0) * 100);
+            const idealGPct = Math.round((refPt ? refPt.idealGas : 1) * 100);
+            document.getElementById('bar-brake-ideal').style.bottom = idealBPct + '%';
+            document.getElementById('bar-gas-ideal').style.bottom = idealGPct + '%';
+
+            // Track Progress & 4-Step Sequence Highlight
+            const s = player.s;
+            document.getElementById('hud-progress-pct').textContent = Math.round(s * 100) + '% Track';
+
+            const steps = [
+                { id: 'step-1', active: s >= meta.brakeStartS - 0.03 && s < meta.turnInS, col: 'bg-rose-500/25 text-rose-300 border-rose-500/50' },
+                { id: 'step-2', active: s >= meta.turnInS && s < meta.apexProgressS - 0.03, col: 'bg-amber-500/25 text-amber-300 border-amber-500/50' },
+                { id: 'step-3', active: s >= meta.apexProgressS - 0.03 && s < meta.throttleStartS + 0.03, col: 'bg-cyan-500/25 text-cyan-300 border-cyan-500/50' },
+                { id: 'step-4', active: s >= meta.throttleStartS + 0.03, col: 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50' }
+            ];
+            steps.forEach(st => {
+                const el = document.getElementById(st.id);
+                el.className = st.active
+                    ? `py-1 px-1 rounded border truncate ${st.col}`
+                    : 'py-1 px-1 rounded bg-slate-800/80 text-slate-500 border border-slate-700/60 truncate';
+            });
+
+            // Live Real-Time Coaching Banner Cue
+            if (player.started && !player.finished) {
+                const cueEl = document.getElementById('live-coach-cue');
+                const dotEl = document.getElementById('phase-indicator-dot');
+
+                if (player.totalG > 1.03) {
+                    cueEl.textContent = '⚠️ TIRE OVERLOAD! EASE OFF PEDAL TO REGAIN GRIP!';
+                    cueEl.className = 'text-xs sm:text-sm font-extrabold mono text-rose-400 tracking-tight';
+                    dotEl.className = 'w-3 h-3 rounded-full bg-rose-500 animate-ping';
+                } else if (s < meta.brakeStartS - 0.02) {
+                    cueEl.textContent = 'FULL THROTTLE [W] — PREPARE TO BRAKE AT 110m BOARD';
+                    cueEl.className = 'text-xs sm:text-sm font-extrabold mono text-emerald-400 tracking-tight';
+                    dotEl.className = 'w-3 h-3 rounded-full bg-emerald-400';
+                } else if (s >= meta.brakeStartS - 0.02 && s < meta.turnInS) {
+                    cueEl.textContent = '🛑 100% THRESHOLD BRAKE [S] IN A STRAIGHT LINE!';
+                    cueEl.className = 'text-xs sm:text-sm font-extrabold mono text-rose-400 tracking-tight';
+                    dotEl.className = 'w-3 h-3 rounded-full bg-rose-500 animate-ping';
+                } else if (s >= meta.turnInS && s < meta.apexProgressS - 0.02) {
+                    cueEl.textContent = '🟠 TURN IN + TRAIL BRAKE (BLEED OFF BRAKE OR HOLD [SHIFT])';
+                    cueEl.className = 'text-xs sm:text-sm font-extrabold mono text-amber-300 tracking-tight';
+                    dotEl.className = 'w-3 h-3 rounded-full bg-amber-400 animate-ping';
+                } else if (s >= meta.apexProgressS - 0.02 && s < meta.throttleStartS + 0.03) {
+                    if (currentApexMode === 'early') {
+                        cueEl.textContent = '⚠️ EARLY APEX PINCH! WAIT TO GAS OR YOU WILL RUN WIDE!';
+                        cueEl.className = 'text-xs sm:text-sm font-extrabold mono text-rose-300 tracking-tight';
+                    } else {
+                        cueEl.textContent = '🎯 CLIPPING APEX! RELEASE BRAKE (0%) & ROLL ONTO GAS [W]';
+                        cueEl.className = 'text-xs sm:text-sm font-extrabold mono text-cyan-300 tracking-tight';
+                    }
+                    dotEl.className = 'w-3 h-3 rounded-full bg-cyan-400 animate-ping';
+                } else {
+                    cueEl.textContent = '🟢 UNWIND WHEEL — 100% FULL THROTTLE [W] TO TRACK-OUT!';
+                    cueEl.className = 'text-xs sm:text-sm font-extrabold mono text-emerald-400 tracking-tight';
+                    dotEl.className = 'w-3 h-3 rounded-full bg-emerald-400';
+                }
+            }
+        }
+
+        /**
+         * Evaluates the player's corner performance and populates the Post-Corner Coaching Card
+         */
+        function finishRun() {
+            player.finished = true;
+            const line = racingLines[currentApexMode];
+            const meta = line.meta;
+
+            const modal = document.getElementById('coaching-modal');
+            modal.classList.remove('hidden');
+
+            const exitSpd = player.exitSpeedRecorded || Math.round(player.speedKmh);
+            const targetSpd = meta.targetExitSpeed;
+
+            document.getElementById('report-exit-speed').textContent = player.offTrack ? 'OFF TRACK' : `${exitSpd} km/h`;
+            document.getElementById('report-exit-delta').textContent = `(Target: ${targetSpd} km/h)`;
+            document.getElementById('report-sector-time').textContent = player.elapsedTime.toFixed(2) + 's';
+            document.getElementById('report-min-speed').textContent = (player.minCornerSpeed < 300 ? Math.round(player.minCornerSpeed) : Math.round(player.speedKmh)) + ' km/h';
+
+            // Dynamic Post-Run Lesson tailored to Apex Mode + Angle + Shape + Length
+            let dynamicLesson = '';
+            if (currentApexMode === 'late') {
+                dynamicLesson = `<strong>Late Apex on ${trackConfig.angle}° (${trackConfig.shape.toUpperCase()}):</strong> By delaying turn-in and trail-braking deeper into the bend, you finished rotating the car before the clipping point and launched onto the ${trackConfig.length} exit straight at full throttle!`;
+            } else if (currentApexMode === 'geometric') {
+                dynamicLesson = `<strong>Geometric Apex on ${trackConfig.angle}° (${trackConfig.shape.toUpperCase()}):</strong> Carried high mid-corner speed (${meta.minApexSpeedKmh} km/h). ${trackConfig.shape === 'increasing' ? 'Because this corner opens up on exit, the geometric line worked great!' : 'Try switching to Late Apex to see how rotating earlier lets you hit 100% gas sooner.'}`;
+            } else {
+                dynamicLesson = `<strong>Early Apex Trap on ${trackConfig.angle}° (${trackConfig.shape.toUpperCase()}):</strong> Turning in early clipped the inside kerb too soon and left the car pointed toward the outside grass! You had to delay throttle or scrub speed to survive the exit.`;
+            }
+            document.getElementById('report-apex-lesson').innerHTML = dynamicLesson;
+
+            // 1. Evaluate Entry Braking Point
+            const brakeStat = document.getElementById('diag-brake-status');
+            const brakeTxt = document.getElementById('diag-brake-text');
+            let score = 100;
+
+            if (player.brakeStartSActual === null) {
+                brakeStat.textContent = 'MISSED BRAKE';
+                brakeStat.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 mono';
+                brakeTxt.textContent = 'You never applied firm threshold braking before turn-in, carrying way too much entry speed into the corner.';
+                score -= 40;
+            } else {
+                const deltaB = player.brakeStartSActual - meta.brakeStartS;
+                if (Math.abs(deltaB) <= 0.045) {
+                    brakeStat.textContent = 'OPTIMAL';
+                    brakeStat.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 mono';
+                    brakeTxt.textContent = 'Spot-on braking point! You hit maximum straight-line deceleration right at the reference board.';
+                } else if (deltaB < -0.045) {
+                    brakeStat.textContent = 'TOO EARLY';
+                    brakeStat.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 mono';
+                    brakeTxt.textContent = 'You braked too early on the entry straight, scrubbing off momentum before reaching the turn-in marker.';
+                    score -= 12;
+                } else {
+                    brakeStat.textContent = 'TOO LATE';
+                    brakeStat.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 mono';
+                    brakeTxt.textContent = 'Braked too deep past the marker! Overshooting entry speed overloads the front tires during turn-in.';
+                    score -= 20;
+                }
+            }
+
+            // 2. Evaluate Trail Braking into the Apex
+            const trailStat = document.getElementById('diag-trail-status');
+            const trailTxt = document.getElementById('diag-trail-text');
+            const avgTrailAccuracy = player.trailBrakeSamples > 0 ? (player.trailBrakeScoreSum / player.trailBrakeSamples) : 0;
+
+            if (avgTrailAccuracy >= 0.62) {
+                trailStat.textContent = 'PRO TRAIL BRAKE';
+                trailStat.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 mono';
+                trailTxt.textContent = 'Great progressive release! Bleeding off brake pressure kept weight on the nose and helped the car rotate to the apex.';
+            } else if (avgTrailAccuracy >= 0.35) {
+                trailStat.textContent = 'DECENT';
+                trailStat.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 mono';
+                trailTxt.textContent = 'Try smoothing your brake release between Turn-In and the Apex (use [SHIFT] or drag the brake slider) to avoid abrupt weight transfer.';
+                score -= 10;
+            } else {
+                trailStat.textContent = 'ABRUPT RELEASE';
+                trailStat.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 mono';
+                trailTxt.textContent = 'Either stayed at 100% brake while turning (causing front tire lock/scrub) or released the brake completely too early.';
+                score -= 22;
+            }
+
+            // 3. Evaluate Post-Apex Throttle Pickup
+            const gasStat = document.getElementById('diag-gas-status');
+            const gasTxt = document.getElementById('diag-gas-text');
+
+            if (player.offTrack) {
+                gasStat.textContent = 'RAN WIDE OFF-TRACK';
+                gasStat.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 mono';
+                gasTxt.textContent = 'Exceeded the Traction Circle and understeered off the track! Wait until the car has rotated at the apex before flooring the gas.';
+                score -= 45;
+            } else if (player.earlyFullGasBeforeApex) {
+                gasStat.textContent = 'EARLY GAS UNDERSTEER';
+                gasStat.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 mono';
+                gasTxt.textContent = 'You applied heavy throttle BEFORE reaching the apex! That shifted weight rearward, unloaded the front tires, and pushed you wide.';
+                score -= 18;
+            } else if (exitSpd >= targetSpd - 4) {
+                gasStat.textContent = 'OPTIMAL EXIT';
+                gasStat.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 mono';
+                gasTxt.textContent = `Nailed the throttle pickup right at the apex! Carried ${exitSpd} km/h onto the straightaway.`;
+            } else {
+                gasStat.textContent = 'HESITANT EXIT';
+                gasStat.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 mono';
+                gasTxt.textContent = `Picked up the throttle late after the apex, leaving ${targetSpd - exitSpd} km/h of straightaway speed on the table.`;
+                score -= 12;
+            }
+
+            // Overall Grade Badge
+            const badge = document.getElementById('report-grade-badge');
+            const headline = document.getElementById('report-headline');
+            if (player.offTrack) {
+                badge.textContent = 'OFF TRACK';
+                badge.className = 'px-2.5 py-0.5 rounded text-xs font-extrabold mono bg-rose-500/20 text-rose-300 border border-rose-500/40';
+                headline.textContent = 'Exceeded Tire Traction Limit!';
+            } else if (score >= 88) {
+                badge.textContent = 'RANK: S // PRO TELEMETRY';
+                badge.className = 'px-2.5 py-0.5 rounded text-xs font-extrabold mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+                headline.textContent = 'Textbook Apex & Pedal Modulation!';
+            } else if (score >= 70) {
+                badge.textContent = 'RANK: B // SOLID RUN';
+                badge.className = 'px-2.5 py-0.5 rounded text-xs font-extrabold mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40';
+                headline.textContent = 'Clean Corner — Room for More Exit Speed';
+            } else {
+                badge.textContent = 'RANK: C // NEEDS MODULATION';
+                badge.className = 'px-2.5 py-0.5 rounded text-xs font-extrabold mono bg-amber-500/20 text-amber-300 border border-amber-500/40';
+                headline.textContent = 'Review Your Brake Release & Gas Timing';
+            }
+        }
+
+        /***********************************************************************
+         * CANVAS RENDERING PIPELINE (TRACK, KERBS, RACING LINE, GHOST, HUDs)
+         ***********************************************************************/
+        function resizeCanvases() {
+            const rect = trackCanvas.parentElement.getBoundingClientRect();
+            trackCanvas.width = rect.width * window.devicePixelRatio;
+            trackCanvas.height = rect.height * window.devicePixelRatio;
+            ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+
+            updateCameraTransform();
+
+            const tRect = traceCanvas.parentElement.getBoundingClientRect();
+            traceCanvas.width = tRect.width * window.devicePixelRatio;
+            traceCanvas.height = tRect.height * window.devicePixelRatio;
+            traceCtx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+        }
+
+        window.addEventListener('resize', resizeCanvases);
+
+        /**
+         * Renders the Top-Down Motorsports Circuit, Distance Boards, Kerbs, Ideal Line, and Cars
+         */
+        function renderTrack() {
+            const w = trackCanvas.width / window.devicePixelRatio;
+            const h = trackCanvas.height / window.devicePixelRatio;
+            ctx.clearRect(0, 0, w, h);
+
+            if (!trackSpine.length) return;
+
+            ctx.save();
+            ctx.translate(viewOffsetX, viewOffsetY);
+            ctx.scale(viewScale, viewScale);
+
+            // 1. Draw Procedural Track Run-off & Asphalt Base along trackSpine
+            function traceCenterlinePath() {
+                ctx.beginPath();
+                for (let i = 0; i < trackSpine.length; i++) {
+                    if (i === 0) ctx.moveTo(trackSpine[i].x, trackSpine[i].y);
+                    else ctx.lineTo(trackSpine[i].x, trackSpine[i].y);
+                }
+            }
+
+            ctx.lineCap = 'butt';
+            ctx.lineJoin = 'round';
+
+            // Outer Gravel/Runoff Border
+            traceCenterlinePath();
+            ctx.strokeStyle = '#131b26';
+            ctx.lineWidth = TRACK_HALF_WIDTH * 2 + 28;
+            ctx.stroke();
+
+            // White Track Limit Outer Lines
+            traceCenterlinePath();
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = TRACK_HALF_WIDTH * 2 + 4;
+            ctx.stroke();
+
+            // Main Dark Asphalt Surface
+            traceCenterlinePath();
+            ctx.strokeStyle = '#19212e';
+            ctx.lineWidth = TRACK_HALF_WIDTH * 2;
+            ctx.stroke();
+
+            // Subtle Centerline Reference Dashed Line
+            traceCenterlinePath();
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([10, 10]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 2. Draw High-Contrast Red/White Entry, Inside Apex, and Exit Kerbs
+            drawKerbs();
+
+            // 3. Draw Braking Distance Marker Boards (150m, 100m, 50m) on Left Outside of Entry Straight
+            drawBrakingBoards();
+
+            // 4. Draw Faint Comparison Ghost Lines for the other 2 unselected apex modes
+            ['late', 'geometric', 'early'].forEach(modeKey => {
+                if (modeKey === currentApexMode) return;
+                const otherPts = racingLines[modeKey].points;
+                ctx.beginPath();
+                for (let i = 0; i < otherPts.length; i += 3) {
+                    if (i === 0) ctx.moveTo(otherPts[i].x, otherPts[i].y);
+                    else ctx.lineTo(otherPts[i].x, otherPts[i].y);
+                }
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 6]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            });
+
+            // 5. Draw Selected Mode's Color-Coded Ideal Racing Line
+            const activeLine = racingLines[currentApexMode];
+            const pts = activeLine.points;
+            for (let i = 1; i < pts.length; i++) {
+                ctx.beginPath();
+                ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
+                ctx.lineTo(pts[i].x, pts[i].y);
+                ctx.strokeStyle = pts[i].phaseColor;
+                ctx.lineWidth = 6.5;
+                ctx.globalAlpha = 0.76;
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1.0;
+
+            // 6. Draw Key Track Callout Badges (Turn-In Point, Clipping Apex Marker(s), Track-Out Exit Marker)
+            drawTrackCallouts(activeLine);
+
+            // 7. Draw Player's Live Telemetry Tire Trail
+            if (player.trail.length > 1) {
+                for (let i = 1; i < player.trail.length; i++) {
+                    const p0 = player.trail[i - 1];
+                    const p1 = player.trail[i];
+                    ctx.beginPath();
+                    ctx.moveTo(p0.x, p0.y);
+                    ctx.lineTo(p1.x, p1.y);
+                    ctx.strokeStyle = p1.color;
+                    ctx.lineWidth = p1.scrub ? 7 : 4.5;
+                    ctx.stroke();
+                }
+            }
+
+            // 8. Draw AI Instructor Ghost Car
+            if (showGhost) {
+                drawCar(ghost.x, ghost.y, ghost.heading, true, ghost.brake, ghost.gas, false);
+            }
+
+            // 9. Draw Player Car + Dynamic Weight/Traction Vector Ring
+            drawCar(player.x, player.y, player.heading, false, player.brakeInput, player.gasInput, player.totalG > 1.0);
+
+            ctx.restore();
+        }
+
+        /**
+         * Draws Procedural Red & White FIA-style Kerbing at Entry Outside, Inside Apex Arc(s), and Exit Track-out
+         */
+        function drawKerbs() {
+            // Helper to draw segmented red/white kerb along a slice of trackSpine at lateral offset
+            function drawSpineKerbSlice(startIdx, endIdx, lateralEdgeSign, width) {
+                const step = 3;
+                let toggle = 0;
+                for (let i = startIdx; i < endIdx - step; i += step) {
+                    const p0 = trackSpine[i];
+                    const p1 = trackSpine[i + step];
+                    const offset = (TRACK_HALF_WIDTH + 3) * lateralEdgeSign;
+                    ctx.beginPath();
+                    ctx.moveTo(p0.x + p0.nx * offset, p0.y + p0.ny * offset);
+                    ctx.lineTo(p1.x + p1.nx * offset, p1.y + p1.ny * offset);
+                    ctx.strokeStyle = toggle % 2 === 0 ? '#ef4444' : '#f8fafc';
+                    ctx.lineWidth = width;
+                    ctx.stroke();
+                    toggle++;
+                }
+            }
+
+            // A. Entry Left Outside Kerb (approaching Turn-In)
+            const entryKerbStart = Math.max(2, cornerStartIdx - 36);
+            drawSpineKerbSlice(entryKerbStart, cornerStartIdx + 6, -1, 9);
+
+            // B. Inside Corner Apex Kerb (+1 normal = right-hand inside edge)
+            drawSpineKerbSlice(cornerStartIdx + 4, cornerEndIdx - 4, 1, 10);
+
+            // C. Exit Outside Track-Out Kerb (-1 normal = left-hand outside exit edge)
+            const exitKerbEnd = Math.min(trackSpine.length - 4, cornerEndIdx + 44);
+            drawSpineKerbSlice(cornerEndIdx - 6, exitKerbEnd, -1, 9);
+
+            // D. Checkered Finish Line near end of Exit Straight
+            const finishIdx = Math.max(cornerEndIdx + 10, Math.floor(trackSpine.length * 0.95));
+            const fp = trackSpine[finishIdx];
+            if (fp) {
+                ctx.save();
+                ctx.translate(fp.x, fp.y);
+                ctx.rotate(fp.heading);
+                const sq = 11;
+                for (let lat = -TRACK_HALF_WIDTH; lat < TRACK_HALF_WIDTH; lat += sq) {
+                    const row = Math.floor((lat + TRACK_HALF_WIDTH) / sq);
+                    ctx.fillStyle = row % 2 === 0 ? '#f8fafc' : '#0f172a';
+                    ctx.fillRect(0, lat, sq, sq);
+                    ctx.fillStyle = row % 2 === 0 ? '#0f172a' : '#f8fafc';
+                    ctx.fillRect(sq, lat, sq, sq);
+                }
+                ctx.restore();
+            }
+        }
+
+        /**
+         * Draws 150m, 100m, and 50m Braking Marker Boards alongside the Entry Straight before Turn-In
+         */
+        function drawBrakingBoards() {
+            const turnInSpinePt = trackSpine[cornerStartIdx];
+            if (!turnInSpinePt) return;
+
+            const boards = [
+                { distBefore: 195, label: '150m' },
+                { distBefore: 130, label: '100m' },
+                { distBefore: 65,  label: '50m' }
+            ];
+
+            boards.forEach(b => {
+                const yPos = turnInSpinePt.y + b.distBefore;
+                const xEdge = turnInSpinePt.x - TRACK_HALF_WIDTH;
+                if (yPos > trackSpine[0].y + 15) return;
+
+                // Connector tick
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(xEdge - 22, yPos);
+                ctx.lineTo(xEdge - 6, yPos);
+                ctx.stroke();
+
+                // Board Box
+                ctx.fillStyle = '#0f172a';
+                ctx.strokeStyle = '#64748b';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.roundRect(xEdge - 68, yPos - 11, 46, 22, 4);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#e2e8f0';
+                ctx.font = 'bold 11px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(b.label, xEdge - 45, yPos);
+            });
+        }
+
+        /**
+         * Draws Educational Callout Markers for Brake Point, Turn-In (T), Clipping Apex (A / A1 & A2), and Track-Out (E)
+         */
+        function drawTrackCallouts(line) {
+            const meta = line.meta;
+            const pts = line.points;
+
+            const brakePt = pts[Math.floor(meta.brakeStartS * pts.length)];
+            const turnInPt = line.turnInPoint;
+            const apex1Pt = line.apex1Point;
+            const apex2Pt = line.apex2Point;
+            const exitPt = line.trackOutPoint;
+
+            // 1. Brake Marker Callout
+            drawMarkerPin(brakePt.x, brakePt.y, '1. BRAKE', '#ef4444', -64, 0);
+
+            // 2. Turn-In + Trail Brake Callout (T)
+            drawMarkerPin(turnInPt.x, turnInPt.y, 'T: TURN-IN + TRAIL', '#f59e0b', -78, -20);
+
+            // 3. Clipping Point(s) (A or A1 & A2)
+            const pulse = 10 + Math.sin(performance.now() * 0.006) * 3;
+
+            if (apex2Pt) {
+                // Double Apex Callouts: A1 and A2
+                [
+                    { pt: apex1Pt, lbl: 'A1: CLIP 1ST APEX', ox: 68, oy: 24 },
+                    { pt: apex2Pt, lbl: 'A2: EXIT APEX (ROLL GAS)', ox: 75, oy: 26 }
+                ].forEach(ap => {
+                    ctx.beginPath();
+                    ctx.arc(ap.pt.x, ap.pt.y, pulse, 0, Math.PI * 2);
+                    ctx.strokeStyle = '#22d3ee';
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+
+                    const sp = trackSpine[ap.pt.spineIdx] || trackSpine[cornerStartIdx];
+                    drawMarkerPin(ap.pt.x, ap.pt.y, ap.lbl, '#06b6d4', sp.nx * 78, sp.ny * 52 + 16);
+                });
+            } else {
+                // Single Apex Callout
+                ctx.beginPath();
+                ctx.arc(apex1Pt.x, apex1Pt.y, pulse, 0, Math.PI * 2);
+                ctx.strokeStyle = '#22d3ee';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(apex1Pt.x, apex1Pt.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = '#22d3ee';
+                ctx.fill();
+
+                const apexLabel = currentApexMode === 'late'
+                    ? 'A: LATE APEX (0% BRAKE → GAS)'
+                    : currentApexMode === 'geometric'
+                    ? 'A: GEOMETRIC APEX'
+                    : 'A: EARLY APEX (PINCHED!)';
+                const sp = trackSpine[apex1Pt.spineIdx] || trackSpine[cornerStartIdx];
+                drawMarkerPin(apex1Pt.x, apex1Pt.y, apexLabel, '#06b6d4', sp.nx * 88, sp.ny * 58 + 14);
+            }
+
+            // 4. Track-Out Full Gas Callout (E)
+            if (exitPt) {
+                const spExit = trackSpine[exitPt.spineIdx] || trackSpine[cornerEndIdx];
+                drawMarkerPin(exitPt.x, exitPt.y, 'E: TRACK-OUT (100% GAS)', '#10b981', -spExit.nx * 74, -spExit.ny * 58 - 14);
+            }
+        }
+
+        function drawMarkerPin(x, y, text, color, offsetX, offsetY) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            const bx = x + offsetX;
+            const by = y + offsetY;
+
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(bx, by);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.font = 'bold 10px "JetBrains Mono", monospace';
+            const tw = ctx.measureText(text).width + 12;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.roundRect(bx - tw / 2, by - 10, tw, 20, 4);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#f8fafc';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, bx, by);
+            ctx.restore();
+        }
+
+        /**
+         * Renders top-down GT/Formula style telemetry car with live brake glow, throttle plume, and tire load halo
+         */
+        function drawCar(x, y, heading, isGhost, brakeVal, gasVal, isOverLimit) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(heading);
+
+            if (isGhost) {
+                ctx.globalAlpha = 0.48;
+            } else {
+                // Draw subtle live Traction Circle Halo around player car
+                ctx.beginPath();
+                ctx.arc(0, 0, 22, 0, Math.PI * 2);
+                ctx.strokeStyle = isOverLimit ? 'rgba(244, 63, 94, 0.85)' : 'rgba(56, 189, 248, 0.28)';
+                ctx.lineWidth = isOverLimit ? 3 : 1.5;
+                ctx.stroke();
+            }
+
+            // Wheels (4 dark tires)
+            ctx.fillStyle = '#090d14';
+            ctx.fillRect(6, -10, 7, 3.5);  // Front Left
+            ctx.fillRect(6, 6.5, 7, 3.5);  // Front Right
+            ctx.fillRect(-11, -10, 7, 3.5); // Rear Left
+            ctx.fillRect(-11, 6.5, 7, 3.5); // Rear Right
+
+            // Highlight front tires in Amber/Red when weight shifts forward under braking!
+            if (!isGhost && brakeVal > 0.1) {
+                ctx.fillStyle = `rgba(245, 158, 11, ${Math.min(1, brakeVal * 1.1)})`;
+                ctx.fillRect(6, -10, 7, 3.5);
+                ctx.fillRect(6, 6.5, 7, 3.5);
+            }
+
+            // Car Chassis Body
+            ctx.fillStyle = isGhost ? '#22d3ee' : '#f8fafc';
+            ctx.strokeStyle = isGhost ? '#0891b2' : '#0284c7';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.roundRect(-14, -7.5, 29, 15, 5);
+            ctx.fill();
+            ctx.stroke();
+
+            // Cockpit Canopy
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.roundRect(-5, -4.5, 12, 9, 3);
+            ctx.fill();
+
+            // Rear Brake Lights Glow when braking
+            if (brakeVal > 0.05) {
+                ctx.fillStyle = brakeVal > 0.65 ? '#ef4444' : '#f59e0b';
+                ctx.beginPath();
+                ctx.arc(-14.5, -5, 2.5 + brakeVal * 2, 0, Math.PI * 2);
+                ctx.arc(-14.5, 5, 2.5 + brakeVal * 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Rear Green Telemetry Indicator when applying Throttle
+            if (gasVal > 0.1) {
+                ctx.fillStyle = '#10b981';
+                ctx.beginPath();
+                ctx.roundRect(-12, -3.5, 3.5, 7 * gasVal, 1);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        /**
+         * Renders Kamm's Friction Circle (G-G Diagram) on the Right Telemetry Panel
+         */
+        function renderGGDiagram() {
+            const w = ggCanvas.width;
+            const h = ggCanvas.height;
+            const cx = w / 2;
+            const cy = h / 2;
+            const maxR = 56;
+
+            ggCtx.clearRect(0, 0, w, h);
+
+            // Background Grid Rings (0.5G and 1.0G Limit Ring)
+            ggCtx.beginPath();
+            ggCtx.arc(cx, cy, maxR * 0.5, 0, Math.PI * 2);
+            ggCtx.strokeStyle = '#1e293b';
+            ggCtx.lineWidth = 1;
+            ggCtx.stroke();
+
+            // Outer 1.0G Traction Limit Circle
+            ggCtx.beginPath();
+            ggCtx.arc(cx, cy, maxR, 0, Math.PI * 2);
+            ggCtx.strokeStyle = player.totalG > 1.0 ? '#ef4444' : '#334155';
+            ggCtx.lineWidth = 2;
+            ggCtx.stroke();
+
+            // Crosshairs
+            ggCtx.beginPath();
+            ggCtx.moveTo(cx - maxR - 8, cy);
+            ggCtx.lineTo(cx + maxR + 8, cy);
+            ggCtx.moveTo(cx, cy - maxR - 8);
+            ggCtx.lineTo(cx, cy + maxR + 8);
+            ggCtx.strokeStyle = '#1e293b';
+            ggCtx.lineWidth = 1;
+            ggCtx.stroke();
+
+            // Axis Labels
+            ggCtx.fillStyle = '#64748b';
+            ggCtx.font = 'bold 8px "JetBrains Mono", monospace';
+            ggCtx.textAlign = 'center';
+            ggCtx.fillText('BRAKE', cx, 10);
+            ggCtx.fillText('GAS', cx, h - 4);
+
+            // Plot Live G-Vector Dot
+            // Up = Braking (-longG), Down = Acceleration (+longG), Left/Right = Cornering Lateral G
+            const gx = cx + (player.latG / 1.2) * maxR;
+            const gy = cy + (player.longG / 1.22) * maxR;
+
+            // Vector Line from center
+            ggCtx.beginPath();
+            ggCtx.moveTo(cx, cy);
+            ggCtx.lineTo(gx, gy);
+            ggCtx.strokeStyle = player.totalG > 1.0 ? '#f43f5e' : '#38bdf8';
+            ggCtx.lineWidth = 2;
+            ggCtx.stroke();
+
+            // G Dot
+            ggCtx.beginPath();
+            ggCtx.arc(gx, gy, 5.5, 0, Math.PI * 2);
+            ggCtx.fillStyle = player.totalG > 1.0 ? '#f43f5e' : player.brakeInput > 0.1 ? '#f59e0b' : '#10b981';
+            ggCtx.fill();
+            ggCtx.strokeStyle = '#ffffff';
+            ggCtx.lineWidth = 1.5;
+            ggCtx.stroke();
+        }
+
+        /**
+         * Renders the Live Telemetry Trace Graph comparing Player Inputs vs. Ideal Reference Dashed Curves
+         */
+        function renderTelemetryTrace() {
+            const w = traceCanvas.width / window.devicePixelRatio;
+            const h = traceCanvas.height / window.devicePixelRatio;
+            traceCtx.clearRect(0, 0, w, h);
+
+            const line = racingLines[currentApexMode];
+            const pts = line.points;
+            const meta = line.meta;
+
+            // Draw Vertical Apex & Turn-In Reference Markers
+            const turnInX = meta.turnInS * w;
+            const apexX = meta.apexProgressS * w;
+
+            traceCtx.strokeStyle = 'rgba(245, 158, 11, 0.25)';
+            traceCtx.beginPath();
+            traceCtx.moveTo(turnInX, 0);
+            traceCtx.lineTo(turnInX, h);
+            traceCtx.stroke();
+
+            traceCtx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
+            traceCtx.beginPath();
+            traceCtx.moveTo(apexX, 0);
+            traceCtx.lineTo(apexX, h);
+            traceCtx.stroke();
+
+            traceCtx.fillStyle = '#22d3ee';
+            traceCtx.font = 'bold 9px "JetBrains Mono", monospace';
+            traceCtx.fillText('APEX', apexX + 3, 10);
+
+            // 1. Draw Ideal Reference Brake (Dashed Red) & Gas (Dashed Green) Curves
+            traceCtx.save();
+            traceCtx.setLineDash([3, 3]);
+            traceCtx.lineWidth = 1.3;
+
+            // Ideal Brake Curve
+            traceCtx.beginPath();
+            for (let i = 0; i < pts.length; i += 3) {
+                const x = pts[i].s * w;
+                const y = h - 6 - pts[i].idealBrake * (h - 16);
+                if (i === 0) traceCtx.moveTo(x, y);
+                else traceCtx.lineTo(x, y);
+            }
+            traceCtx.strokeStyle = 'rgba(239, 68, 68, 0.5)';
+            traceCtx.stroke();
+
+            // Ideal Gas Curve
+            traceCtx.beginPath();
+            for (let i = 0; i < pts.length; i += 3) {
+                const x = pts[i].s * w;
+                const y = h - 6 - pts[i].idealGas * (h - 16);
+                if (i === 0) traceCtx.moveTo(x, y);
+                else traceCtx.lineTo(x, y);
+            }
+            traceCtx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
+            traceCtx.stroke();
+            traceCtx.restore();
+
+            // 2. Draw Player's Recorded Solid Traces (Brake, Gas, and Speed)
+            if (player.trail.length > 1) {
+                // Player Brake Trace
+                traceCtx.beginPath();
+                player.trail.forEach((t, idx) => {
+                    const x = t.s * w;
+                    const y = h - 6 - t.brake * (h - 16);
+                    if (idx === 0) traceCtx.moveTo(x, y);
+                    else traceCtx.lineTo(x, y);
+                });
+                traceCtx.strokeStyle = '#ef4444';
+                traceCtx.lineWidth = 2.2;
+                traceCtx.stroke();
+
+                // Player Gas Trace
+                traceCtx.beginPath();
+                player.trail.forEach((t, idx) => {
+                    const x = t.s * w;
+                    const y = h - 6 - t.gas * (h - 16);
+                    if (idx === 0) traceCtx.moveTo(x, y);
+                    else traceCtx.lineTo(x, y);
+                });
+                traceCtx.strokeStyle = '#10b981';
+                traceCtx.lineWidth = 2.2;
+                traceCtx.stroke();
+
+                // Player Speed Trace (Cyan)
+                traceCtx.beginPath();
+                player.trail.forEach((t, idx) => {
+                    const x = t.s * w;
+                    const normSpd = Math.min(1, Math.max(0, (t.speed - 50) / 140));
+                    const y = h - 6 - normSpd * (h - 16);
+                    if (idx === 0) traceCtx.moveTo(x, y);
+                    else traceCtx.lineTo(x, y);
+                });
+                traceCtx.strokeStyle = '#38bdf8';
+                traceCtx.lineWidth = 1.5;
+                traceCtx.stroke();
+            }
+
+            // Current Position Playhead Line
+            const curX = player.s * w;
+            traceCtx.beginPath();
+            traceCtx.moveTo(curX, 0);
+            traceCtx.lineTo(curX, h);
+            traceCtx.strokeStyle = 'rgba(248, 250, 252, 0.35)';
+            traceCtx.lineWidth = 1;
+            traceCtx.stroke();
+        }
+
+        // Main Animation Loop
+        let lastTime = performance.now();
+        function animateLoop(now) {
+            const dt = Math.min(0.05, (now - lastTime) / 1000);
+            lastTime = now;
+
+            updateSimulation(dt);
+            renderTrack();
+            renderGGDiagram();
+            renderTelemetryTrace();
+
+            requestAnimationFrame(animateLoop);
+        }
+
+        window.onload = function () {
+            buildProceduralTrackAndLines();
+            resizeCanvases();
+            setApexMode('late');
+            requestAnimationFrame(animateLoop);
+        };
+    </script>
+</body>
+</html>
