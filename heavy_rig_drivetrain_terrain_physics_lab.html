@@ -1,0 +1,3032 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RIGLAB // Heavy-Duty Semi & B-Double Drivetrain, Wheel-Spin & Terrain Physics Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #080b10;
+            --panel-bg: #10151f;
+            --border-col: #1e293b;
+        }
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            background-color: var(--bg-dark);
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #090d14;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 9999px;
+        }
+        input[type=range] {
+            accent-color: #f59e0b;
+            cursor: pointer;
+        }
+        .gauge-shadow {
+            box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.75);
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden select-none bg-[#080b10]">
+
+    <!-- TOP CONTROL HEADER: RIG, WEATHER, SURFACE, ROAD ELEVATION/SHAPE & POWERTRAIN -->
+    <header class="bg-[#0d121b] border-b border-slate-800 px-3 py-1.5 flex flex-col gap-1.5 shrink-0 z-20">
+        <!-- Row 1: Brand + Rig Configuration + Camera Zoom + Diff Lock + Reset -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+                <div class="flex items-center gap-2 bg-slate-900 border border-amber-500/40 px-2.5 py-1 rounded-lg">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span class="mono font-extrabold text-sm tracking-wider text-white">RIG<span class="text-amber-400">LAB</span></span>
+                    <span class="text-[10px] mono uppercase px-1.5 py-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded">SIDE-PROFILE DRIVETRAIN SIM</span>
+                </div>
+
+                <!-- Rig Type Selector (Single Semi vs Double-Trailed B-Double vs Heavy Logger) -->
+                <div class="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 gap-1">
+                    <button id="rig-single" onclick="setRigType('single')" class="px-2.5 py-1 rounded-md text-xs font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+                        <span>🚛 Single Trailed Semi (5-Axle • 36t)</span>
+                    </button>
+                    <button id="rig-double" onclick="setRigType('double')" class="px-2.5 py-1 rounded-md text-xs font-semibold transition flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        <span>🚛+🚚+🚚 Double-Trailed B-Double (8-Axle • 62t)</span>
+                    </button>
+                    <button id="rig-heavy" onclick="setRigType('heavy')" class="px-2.5 py-1 rounded-md text-xs font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+                        <span>🪵 Extreme Heavy Road-Train (8-Axle • 78t)</span>
+                    </button>
+                </div>
+
+                <!-- Payload Mass Adjuster -->
+                <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-xs">
+                    <span class="text-[10px] mono uppercase text-slate-400">GVW Mass:</span>
+                    <input id="slider-mass" type="range" min="16" max="85" value="62" oninput="setPayloadMass(this.value)" class="w-20 h-1.5">
+                    <span id="label-mass" class="mono font-bold text-amber-300 text-xs">62.0 t</span>
+                </div>
+            </div>
+
+            <!-- Right Controls: Camera Focus, Diff Lock, Auto-Clutch, Reset -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+                <!-- Camera View Toggle -->
+                <div class="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs">
+                    <button id="cam-full" onclick="setCameraMode('full')" class="px-2 py-0.5 rounded font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">Full Rig View</button>
+                    <button id="cam-drive" onclick="setCameraMode('drive')" class="px-2 py-0.5 rounded font-semibold text-slate-400 hover:text-white">Zoom Drive Axles (Wheel Spin)</button>
+                </div>
+
+                <!-- Differential Lock Toggle (Crucial for Mud / Ice / Snow) -->
+                <button id="btn-difflock" onclick="toggleDiffLock()" class="px-2.5 py-1 rounded-lg text-xs font-bold mono bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-400 transition flex items-center gap-1.5" title="Lock Inter-Axle & Cross-Axle Differentials (Key: L)">
+                    <span id="difflock-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                    <span id="difflock-label">DIFF LOCK: OPEN [L]</span>
+                </button>
+
+                <!-- All-Wheel Drive 6x6 Tractor Boost Toggle -->
+                <button id="btn-awd" onclick="toggleFrontDrive()" class="px-2.5 py-1 rounded-lg text-xs font-bold mono bg-slate-800 text-slate-300 border border-slate-700 hover:border-cyan-400 transition" title="Switch Tractor between 6x4 Rear Tandem Drive and 6x6 All-Wheel Drive">
+                    <span id="awd-label">DRIVE: 6x4 TANDEM</span>
+                </button>
+
+                <!-- Real-Time Synthesizer Audio Controls -->
+                <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-2 py-0.5 rounded-lg">
+                    <button id="btn-audio-toggle" onclick="toggleAudioMute()" class="text-xs font-bold mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1" title="Toggle Procedural Diesel & Pneumatic Audio Engine [M]">
+                        <span id="audio-icon">🔊</span>
+                        <span id="audio-status-lbl">AUDIO ON</span>
+                    </button>
+                    <input id="slider-volume" type="range" min="0" max="100" value="75" oninput="setMasterVolume(this.value)" class="w-14 h-1.5" title="Master Synth Volume">
+                </div>
+
+                <!-- Powertrain Spec Drawer Button -->
+                <button onclick="toggleSpecModal()" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 hover:bg-indigo-500/30 transition flex items-center gap-1">
+                    <span>⚙️ Engine & Trans Specs</span>
+                </button>
+
+                <!-- Restart / Winch Session Button -->
+                <button onclick="resetSession()" class="px-3 py-1 rounded-lg text-xs font-extrabold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition shadow-lg shadow-emerald-500/10">
+                    <span>↻ RESTART SESSION [R]</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Row 2: Environment Matrix (Independent Weather + Independent Road Surface + Road Elevation/Shape + Choose Wisely Tactical Matrix) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-1.5 pt-1 border-t border-slate-800/80 text-xs items-center">
+            
+            <!-- 1. INDEPENDENT WEATHER CONDITION & STRENGTH (3 cols) -->
+            <div class="lg:col-span-3 flex flex-wrap items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2 py-1 rounded-lg">
+                <span class="text-[10px] font-bold uppercase text-cyan-400 mono">1. Weather:</span>
+                <select id="select-weather" onchange="setWeather(this.value)" class="bg-slate-950 border border-slate-700 text-slate-100 text-xs font-semibold rounded px-1.5 py-0.5 focus:outline-none focus:border-cyan-400 flex-1 min-w-[120px]">
+                    <option value="sunny">☀️ Sunny (Clear Sky)</option>
+                    <option value="mist">🌫️ Mist (Air Micro-Mist)</option>
+                    <option value="fog">🌁 Dense Fog (Low Vis)</option>
+                    <option value="rainy">🌧️ Rainstorm (Downpour)</option>
+                    <option value="snowy">❄️ Blizzard Snow (Squall)</option>
+                    <option value="windy">💨 Severe Headwind Gale</option>
+                </select>
+                <div class="flex items-center gap-1">
+                    <input id="slider-weather-strength" type="range" min="0" max="100" value="65" oninput="setWeatherStrength(this.value)" class="w-12 h-1.5" title="Weather Intensity (0-100%)">
+                    <span id="label-weather-strength" class="mono font-bold text-cyan-300 text-[10px] w-7 text-right">65%</span>
+                </div>
+            </div>
+
+            <!-- 2. INDEPENDENT ROAD SURFACE CONDITION + DECOUPLE/COUPLE TOGGLE (4 cols) -->
+            <div class="lg:col-span-4 flex flex-wrap items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2 py-1 rounded-lg">
+                <span class="text-[10px] font-bold uppercase text-amber-400 mono">2. Road:</span>
+                <select id="select-surface" onchange="setSurface(this.value)" class="bg-slate-950 border border-slate-700 text-slate-100 text-xs font-semibold rounded px-1.5 py-0.5 focus:outline-none focus:border-amber-400 flex-1 min-w-[130px]">
+                    <option value="asphalt">🛣️ Asphalt (Base μ=0.88 • Firm)</option>
+                    <option value="dirt">🟫 Compacted Dirt (Base μ=0.62)</option>
+                    <option value="pebble">🪨 Loose Pebble / Gravel (μ=0.50)</option>
+                    <option value="sand">🏜️ Soft Desert Sand (μ=0.42 • Sink!)</option>
+                    <option value="mud">💩 Deep Logging Mud (μ=0.30 • Bog!)</option>
+                    <option value="ice">🧊 Glazed Black Ice (μ=0.11 • Slick!)</option>
+                </select>
+                <button id="btn-weather-surface-link" onclick="toggleWeatherSurfaceCoupling()" class="px-1.5 py-0.5 rounded text-[9px] font-bold mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 transition" title="Toggle whether Weather wets/ices the Road Surface or stays 100% decoupled">
+                    Wx→Road: COUPLED
+                </button>
+                <span id="badge-eff-mu" class="text-[10px] mono font-bold px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700">Eff μ: 0.88</span>
+            </div>
+
+            <!-- 3. ROAD ELEVATION & GEOMETRY SHAPE (3 cols) -->
+            <div class="lg:col-span-3 flex flex-wrap items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2 py-1 rounded-lg">
+                <span class="text-[10px] font-bold uppercase text-emerald-400 mono">3. Shape:</span>
+                <select id="select-roadshape" onchange="setRoadShape(this.value)" class="bg-slate-950 border border-slate-700 text-slate-100 text-xs font-semibold rounded px-1.5 py-0.5 focus:outline-none focus:border-emerald-400 flex-1 min-w-[115px]">
+                    <option value="straight">📏 Flat Straight (0%)</option>
+                    <option value="uphill">⛰️ Steep Climb (+10%)</option>
+                    <option value="downhill">📐 Steep Descent (-9%)</option>
+                    <option value="rolling">〰️ Rolling Sine Hills</option>
+                    <option value="sharpturn">↪️ Sharp 90° Bend</option>
+                    <option value="uturn">🔄 180° Hairpin U-Turn</option>
+                    <option value="circle">⭕ Skidpad Circle</option>
+                </select>
+                <div class="flex items-center gap-1">
+                    <input id="slider-grade" type="range" min="-15" max="18" step="0.5" value="0" oninput="setCustomGrade(this.value)" class="w-12 h-1.5" title="Road Slope Grade %">
+                    <span id="label-grade" class="mono font-bold text-emerald-300 text-[10px] w-9 text-right">0.0%</span>
+                </div>
+            </div>
+
+            <!-- 4. "CHOOSE WISELY" TACTICAL MATRIX RISK BADGE (2 cols) -->
+            <div class="lg:col-span-2 flex items-center justify-between bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg">
+                <div class="truncate">
+                    <div class="text-[8px] uppercase tracking-wider text-slate-400 mono">TACTICAL SETUP</div>
+                    <div id="hud-tactical-advice" class="text-[10px] font-extrabold mono text-emerald-400 truncate">OPTIMAL MATCH</div>
+                </div>
+                <span id="hud-tactical-risk-pill" class="text-[9px] mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">LOW RISK</span>
+            </div>
+
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE: SIDE-PROFILE SIMULATION CANVAS + BOTTOM / RIGHT LIVE DRIVETRAIN GAUGES -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+
+        <!-- CENTER/LEFT: SIDE-PROFILE PHYSICS VIEWPORT -->
+        <div class="relative flex-1 h-full flex flex-col overflow-hidden bg-[#070a0f]">
+
+            <!-- Top Floating Telemetry & Force Balance Bar -->
+            <div class="absolute top-2.5 left-3 right-3 flex flex-wrap items-start justify-between gap-2 pointer-events-none z-10">
+                <!-- Live Physics Force Balance Breakdown -->
+                <div class="bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-2 shadow-xl flex flex-wrap items-center gap-3 pointer-events-auto">
+                    <div>
+                        <div class="text-[9px] uppercase tracking-wider text-slate-400 mono">Tractive Effort (Drive Wheels)</div>
+                        <div id="hud-tractive-force" class="text-sm font-extrabold mono text-emerald-400">0.0 kN</div>
+                    </div>
+                    <div class="h-6 w-px bg-slate-800"></div>
+                    <div>
+                        <div class="text-[9px] uppercase tracking-wider text-slate-400 mono">Gravity Grade Resistance</div>
+                        <div id="hud-grade-force" class="text-sm font-extrabold mono text-amber-300">0.0 kN</div>
+                    </div>
+                    <div class="h-6 w-px bg-slate-800"></div>
+                    <div>
+                        <div class="text-[9px] uppercase tracking-wider text-slate-400 mono">Rolling + Sinkage + Turn Scrub</div>
+                        <div id="hud-drag-force" class="text-sm font-extrabold mono text-rose-400">0.0 kN</div>
+                    </div>
+                    <div class="h-6 w-px bg-slate-800"></div>
+                    <div>
+                        <div class="text-[9px] uppercase tracking-wider text-slate-400 mono">Axle Sinkage Depth</div>
+                        <div id="hud-sinkage" class="text-sm font-extrabold mono text-cyan-300">0.0 cm</div>
+                    </div>
+                    <div class="h-6 w-px bg-slate-800"></div>
+                    <div>
+                        <div class="text-[9px] uppercase tracking-wider text-slate-400 mono">Exhaust Soot / Load</div>
+                        <div id="hud-exhaust-state" class="text-sm font-extrabold mono text-slate-300">CLEAN IDLE</div>
+                    </div>
+                </div>
+
+                <!-- Live Physics Advisory Banner -->
+                <div class="bg-slate-950/90 backdrop-blur-md border border-slate-700 rounded-xl px-3.5 py-2 flex items-center gap-2.5 shadow-xl max-w-md">
+                    <span id="status-led" class="w-3 h-3 rounded-full bg-emerald-400 shrink-0"></span>
+                    <div>
+                        <div class="text-[9px] uppercase tracking-widest text-slate-400 mono">DRIVETRAIN & TRACTION TELEMETRY</div>
+                        <div id="live-physics-alert" class="text-xs font-extrabold mono text-white">READY — RELEASE BRAKE & FEATHER THROTTLE [W]</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MAIN SIDE-PROFILE 2D/2.5D CANVAS -->
+            <canvas id="simCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+            <!-- Bottom-Left Quick Powertrain Tuning Pill (Live Engine Torque & Final Drive Sliders) -->
+            <div class="absolute bottom-3 left-3 bg-slate-950/92 backdrop-blur-md border border-slate-800 rounded-xl p-2.5 flex flex-wrap items-center gap-3 z-10 shadow-2xl max-w-2xl">
+                <div class="flex flex-col">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[10px] font-bold uppercase text-amber-400 mono">Peak Engine Torque</span>
+                        <span id="quick-torque-lbl" class="text-xs font-extrabold mono text-white">2,850 Nm</span>
+                    </div>
+                    <input id="quick-slider-torque" type="range" min="1400" max="3800" step="50" value="2850" oninput="updateEngineSpec('peakTorque', this.value)" class="w-36 h-1.5 mt-1">
+                    <span class="text-[9px] text-slate-400 mono">Cummins/Scania Heavy Spec</span>
+                </div>
+                <div class="h-8 w-px bg-slate-800"></div>
+                <div class="flex flex-col">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[10px] font-bold uppercase text-emerald-400 mono">Final Drive Ratio</span>
+                        <span id="quick-diff-lbl" class="text-xs font-extrabold mono text-white">3.73 : 1</span>
+                    </div>
+                    <input id="quick-slider-diff" type="range" min="2.64" max="4.88" step="0.05" value="3.73" oninput="updateEngineSpec('finalDrive', this.value)" class="w-32 h-1.5 mt-1">
+                    <span class="text-[9px] text-slate-400 mono">Wheel Torque Multiplier</span>
+                </div>
+                <div class="h-8 w-px bg-slate-800"></div>
+                <div class="flex flex-col gap-1">
+                    <span class="text-[10px] font-bold uppercase text-indigo-300 mono">Shift Mode</span>
+                    <div class="flex items-center gap-1">
+                        <button id="shift-auto" onclick="setShiftMode('auto')" class="px-2 py-0.5 rounded text-[10px] font-bold mono bg-indigo-500/25 text-indigo-300 border border-indigo-500/40">AUTO AMT</button>
+                        <button id="shift-manual" onclick="setShiftMode('manual')" class="px-2 py-0.5 rounded text-[10px] font-bold mono bg-slate-800 text-slate-400 border border-slate-700">MANUAL [Q/E]</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom-Right Interactive Pedal, Multi-Stage Retarder, Emergency Brake & Gear Control Deck -->
+            <div class="absolute bottom-3 right-3 bg-slate-950/95 backdrop-blur-md border border-slate-700/90 rounded-xl p-2.5 flex flex-wrap items-center gap-2 z-10 shadow-2xl">
+                <!-- Gear Shifter Tower -->
+                <div class="flex flex-col items-center bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1">
+                    <span class="text-[9px] mono uppercase text-slate-400">GEAR</span>
+                    <span id="hud-gear" class="text-xl font-extrabold mono text-amber-400 leading-tight">3L</span>
+                    <div class="flex items-center gap-1 mt-1">
+                        <button onclick="shiftGear(-1)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold mono border border-slate-600" title="Downshift [Q]">▼ Q</button>
+                        <button onclick="shiftGear(1)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold mono border border-slate-600" title="Upshift [E]">▲ E</button>
+                    </div>
+                </div>
+
+                <!-- Clutch Pedal Slider/Button -->
+                <div class="flex flex-col items-center">
+                    <span id="lbl-clutch" class="text-[10px] font-bold mono text-indigo-300">0%</span>
+                    <button onmousedown="holdPedal('clutch', 1)" onmouseup="releasePedal('clutch')" onmouseleave="releasePedal('clutch')"
+                        ontouchstart="holdPedal('clutch', 1); event.preventDefault();" ontouchend="releasePedal('clutch')"
+                        class="w-11 h-12 rounded-lg bg-indigo-950/80 hover:bg-indigo-900/80 active:bg-indigo-600 border border-indigo-500/50 flex flex-col items-center justify-center">
+                        <span class="text-[9px] font-extrabold text-indigo-200 mono">CLUTCH</span>
+                        <span class="text-[8px] text-indigo-400 mono">[SHIFT]</span>
+                    </button>
+                </div>
+
+                <!-- 5-Stage Jake / Hydraulic Driveline Retarder Lever -->
+                <div class="flex flex-col items-center bg-slate-900 border border-amber-500/30 rounded-lg px-2 py-1">
+                    <div class="flex items-center justify-between w-full gap-1">
+                        <span class="text-[8px] mono uppercase text-amber-400 font-bold">RETARDER</span>
+                        <span id="lbl-jake" class="text-[10px] font-extrabold mono text-slate-400">OFF (0/4)</span>
+                    </div>
+                    <div class="flex items-center gap-1 mt-1">
+                        <button id="btn-jake" onclick="cycleRetarderStage(1)"
+                            class="px-2 py-1 rounded bg-amber-950/60 hover:bg-amber-900/70 border border-amber-500/40 flex flex-col items-center justify-center" title="Cycle 5-Stage Engine/Driveline Retarder [V or SPACE]">
+                            <span class="text-[9px] font-extrabold text-amber-200 mono">STAGE ▲ [V]</span>
+                        </button>
+                        <button onclick="setRetarderStage(0)"
+                            class="px-1.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[9px] font-bold mono text-slate-300" title="Turn Retarder Off">
+                            OFF
+                        </button>
+                    </div>
+                    <div class="w-full grid grid-cols-4 gap-0.5 mt-1">
+                        <div id="ret-seg-1" class="h-1 rounded bg-slate-800"></div>
+                        <div id="ret-seg-2" class="h-1 rounded bg-slate-800"></div>
+                        <div id="ret-seg-3" class="h-1 rounded bg-slate-800"></div>
+                        <div id="ret-seg-4" class="h-1 rounded bg-slate-800"></div>
+                    </div>
+                </div>
+
+                <!-- Pneumatic Spring Emergency / Parking Brake Pull Valve -->
+                <div class="flex flex-col items-center">
+                    <span id="lbl-ebrake" class="text-[10px] font-extrabold mono text-slate-400">RELEASED</span>
+                    <button id="btn-ebrake" onclick="toggleEmergencyBrake()"
+                        class="w-14 h-12 rounded-lg bg-slate-900 hover:bg-rose-950/90 border-2 border-rose-500/60 flex flex-col items-center justify-center transition shadow-inner" title="Pull Pneumatic Spring Emergency / Parking Brake Valve [B]">
+                        <span class="text-[9px] font-extrabold text-rose-300 mono">🛑 E-BRAKE</span>
+                        <span class="text-[8px] text-rose-400 mono">[B] PULL</span>
+                    </button>
+                </div>
+
+                <!-- Service Air Brake -->
+                <div class="flex flex-col items-center">
+                    <span id="lbl-brake" class="text-[10px] font-bold mono text-rose-400">0%</span>
+                    <button onmousedown="holdPedal('brake', 1)" onmouseup="releasePedal('brake')" onmouseleave="releasePedal('brake')"
+                        ontouchstart="holdPedal('brake', 1); event.preventDefault();" ontouchend="releasePedal('brake')"
+                        class="w-12 h-12 px-2 rounded-lg bg-rose-950/80 hover:bg-rose-900/80 active:bg-rose-600 border border-rose-500/50 flex flex-col items-center justify-center">
+                        <span class="text-[10px] font-extrabold text-rose-200 mono">BRAKE</span>
+                        <span class="text-[8px] text-rose-400 mono">[S / ↓]</span>
+                    </button>
+                </div>
+
+                <!-- Feather Throttle Slider + Full Gas Button -->
+                <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg p-1.5">
+                    <div class="flex flex-col items-center">
+                        <span id="lbl-throttle" class="text-[10px] font-extrabold mono text-emerald-400">0%</span>
+                        <input id="slider-throttle" type="range" min="0" max="100" value="0"
+                            oninput="setManualThrottleSlider(this.value)"
+                            class="w-16 h-2 accent-emerald-400" title="Drag to hold constant partial throttle to prevent wheelspin in mud/ice!">
+                        <span class="text-[8px] text-slate-400 mono">FEATHER GAS</span>
+                    </div>
+                    <button onmousedown="holdPedal('gas', 1)" onmouseup="releasePedal('gas')" onmouseleave="releasePedal('gas')"
+                        ontouchstart="holdPedal('gas', 1); event.preventDefault();" ontouchend="releasePedal('gas')"
+                        class="w-13 h-12 px-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-900/80 active:bg-emerald-600 border border-emerald-500/50 flex flex-col items-center justify-center">
+                        <span class="text-[10px] font-extrabold text-emerald-200 mono">GAS</span>
+                        <span class="text-[8px] text-emerald-400 mono">[W / ↑]</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- CRITICAL FAILURE / BOGGED IN MUD OR SNOW / CLUTCH BURNED OVERLAY MODAL -->
+            <div id="stuck-modal" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-md z-30 flex items-center justify-center p-4">
+                <div class="bg-[#121722] border-2 border-rose-500/70 rounded-2xl max-w-xl w-full p-5 shadow-2xl">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+                        <div class="flex items-center gap-2.5">
+                            <span class="px-2.5 py-1 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-extrabold mono animate-pulse">SESSION TERMINATED</span>
+                            <h2 id="stuck-title" class="text-lg font-extrabold text-white">RIG BOGGED & IMMOBILIZED IN DEEP MUD!</h2>
+                        </div>
+                    </div>
+
+                    <p id="stuck-reason" class="text-xs text-slate-300 leading-relaxed mb-4">
+                        Excessive drive-wheel slip (88%) excavated 42 cm ruts beneath the tandem drive axles. The chassis frame rails have bottomed out on the mud pack, and bulldozing resistance (112 kN) exceeds maximum tire tractive effort (24 kN).
+                    </p>
+
+                    <div class="grid grid-cols-3 gap-2.5 mb-4 bg-slate-900/90 border border-slate-800 rounded-xl p-3 text-center">
+                        <div>
+                            <div class="text-[10px] text-slate-400 uppercase mono">Peak Wheel Slip</div>
+                            <div id="stuck-stat-slip" class="text-base font-extrabold mono text-rose-400">92%</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-slate-400 uppercase mono">Axle Sinkage Depth</div>
+                            <div id="stuck-stat-sink" class="text-base font-extrabold mono text-amber-300">42.0 cm</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] text-slate-400 uppercase mono">Clutch / Trans Temp</div>
+                            <div id="stuck-stat-temp" class="text-base font-extrabold mono text-cyan-300">195 °C</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-amber-950/30 border border-amber-500/40 rounded-xl p-3 mb-4">
+                        <div class="text-[10px] font-bold uppercase text-amber-400 mono mb-1">💡 Physics Recovery & Driving Tip</div>
+                        <p id="stuck-tip" class="text-xs text-slate-200 leading-relaxed">
+                            To cross Deep Mud, Soft Sand, or Snow without digging in: <strong>1) Engage DIFF LOCK [L]</strong> & <strong>6x6 Drive</strong>, <strong>2) Start in a higher gear (e.g. 3L or 4L)</strong> so transmission torque multiplication doesn't instantly break traction, and <strong>3) Use the Feather Gas slider (25%–45%)</strong> to keep wheel slip below 20%!
+                        </p>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2.5">
+                        <button onclick="engageAssistAndRestart()" class="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition">
+                            Enable Diff-Lock + 6x6 & Restart
+                        </button>
+                        <button onclick="resetSession()" class="px-5 py-2 rounded-xl text-xs font-extrabold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition shadow-lg shadow-emerald-500/20">
+                            ↻ WINCH & RESTART SESSION [R]
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT SIDEBAR: REAL-TIME ENGINE, TRANSMISSION & WHEEL-SPIN TELEMETRY CLUSTER -->
+        <aside class="w-full lg:w-[430px] xl:w-[460px] bg-[#0c1018] border-t lg:border-t-0 lg:border-l border-slate-800/90 flex flex-col justify-between p-2.5 gap-2 shrink-0 z-20 overflow-y-auto">
+
+            <!-- 1. SPEED COMPARISON: TRUE GROUND SPEED vs DRIVE WHEEL RIM SPEED + SLIP RATIO -->
+            <div class="grid grid-cols-3 gap-2 bg-slate-900/90 border border-slate-800 rounded-xl p-2">
+                <div class="bg-slate-950 rounded-lg p-2 border border-slate-800/70">
+                    <div class="text-[9px] uppercase tracking-wider text-slate-400 mono">GROUND SPEED</div>
+                    <div class="flex items-baseline gap-1 mt-0.5">
+                        <span id="hud-ground-speed" class="text-2xl font-extrabold mono text-white">0.0</span>
+                        <span class="text-[10px] text-slate-400 mono">km/h</span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950 rounded-lg p-2 border border-slate-800/70">
+                    <div class="text-[9px] uppercase tracking-wider text-amber-400 mono">WHEEL RIM SPEED</div>
+                    <div class="flex items-baseline gap-1 mt-0.5">
+                        <span id="hud-wheel-speed" class="text-2xl font-extrabold mono text-amber-400">0.0</span>
+                        <span class="text-[10px] text-slate-400 mono">km/h</span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950 rounded-lg p-2 border border-slate-800/70">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[9px] uppercase tracking-wider text-rose-400 mono">WHEEL SLIP (λ)</span>
+                        <span id="hud-slip-badge" class="text-[8px] mono px-1 rounded bg-emerald-500/20 text-emerald-300">GRIP</span>
+                    </div>
+                    <div class="flex items-baseline gap-1 mt-0.5">
+                        <span id="hud-slip-pct" class="text-2xl font-extrabold mono text-emerald-400">0%</span>
+                        <span class="text-[10px] text-slate-400 mono">spin</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. DUAL ANALOG/DIGITAL GAUGES: ENGINE RPM/LOAD & TRANSMISSION OUTPUT TORQUE -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300 mono">Real-Time Engine & Transmission Load Gauges</span>
+                    <span id="hud-spec-summary" class="text-[9px] mono text-amber-400">2850 Nm • 18-Spd • 3.73:1</span>
+                </div>
+
+                <!-- Circular Gauge Canvas (Engine RPM/Torque on Left, Transmission Torque/Temp on Right) -->
+                <div class="relative w-full h-[165px] bg-slate-950 rounded-xl border border-slate-800/80 gauge-shadow flex items-center justify-center overflow-hidden">
+                    <canvas id="gaugeCanvas" class="w-full h-full block"></canvas>
+                </div>
+
+                <!-- Digital Bar Readouts for Engine Load %, Turbo Boost, Trans Torque & Clutch Temp -->
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="bg-slate-950/90 border border-slate-800/80 rounded-lg p-2">
+                        <div class="flex justify-between mono text-[10px] mb-1">
+                            <span class="text-slate-400">ENGINE LOAD:</span>
+                            <span id="bar-lbl-engload" class="font-bold text-amber-400">0% (0 Nm)</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                            <div id="bar-fill-engload" class="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-rose-500 transition-all duration-75" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between mono text-[9px] text-slate-400 mt-1.5">
+                            <span>Turbo Boost: <strong id="hud-boost" class="text-cyan-300">0.0 PSI</strong></span>
+                            <span>RPM: <strong id="hud-rpm-num" class="text-white">700</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-950/90 border border-slate-800/80 rounded-lg p-2">
+                        <div class="flex justify-between mono text-[10px] mb-1">
+                            <span class="text-slate-400">TRANS OUTPUT:</span>
+                            <span id="bar-lbl-transtorque" class="font-bold text-cyan-300">0.0 kNm</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                            <div id="bar-fill-transtorque" class="h-full bg-gradient-to-r from-cyan-500 via-indigo-400 to-fuchsia-500 transition-all duration-75" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between mono text-[9px] text-slate-400 mt-1.5">
+                            <span>Ratio: <strong id="hud-ratio-num" class="text-amber-300">8.51:1</strong></span>
+                            <span>Clutch: <strong id="hud-clutch-temp" class="text-emerald-400">75°C</strong></span>
+                            <span>Drums: <strong id="hud-brake-temp" class="text-emerald-400">65°C</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. PER-AXLE TRACTION, NORMAL LOAD (Fz), AND WHEEL SLIP BREAKDOWN -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 flex flex-col gap-1.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300 mono">Axle Normal Load (Fz) & Wheel Spin Monitor</span>
+                    <span id="hud-turn-scrub-pill" class="text-[9px] mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">Lat G: 0.00g</span>
+                </div>
+
+                <div id="axle-telemetry-list" class="space-y-1.5 text-[10px] mono">
+                    <!-- Populated dynamically per axle group -->
+                </div>
+            </div>
+
+            <!-- 4. REAL-TIME TELEMETRY STRIP CHART (TORQUE, WHEEL SPEED vs GROUND SPEED, SINKAGE) -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-2 flex flex-col h-[125px] shrink-0">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-[9px] font-bold uppercase tracking-wider text-slate-300 mono">Live Strip Chart (Wheel Spd vs Ground Spd & Torque)</span>
+                    <div class="flex items-center gap-2 text-[9px] mono">
+                        <span class="text-white">■ Ground</span>
+                        <span class="text-amber-400">■ Wheel Rim</span>
+                        <span class="text-cyan-400">■ Trans Torque</span>
+                    </div>
+                </div>
+                <div class="relative flex-1 bg-slate-950 rounded-lg border border-slate-800 overflow-hidden">
+                    <canvas id="chartCanvas" class="w-full h-full block"></canvas>
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <!-- POWERTRAIN & TRANSMISSION SPECIFICATION MODAL -->
+    <div id="spec-modal" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-[#101622] border border-slate-700 rounded-2xl max-w-2xl w-full p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-amber-400 mono">POWERTRAIN DYNO & GEARBOX LAB</span>
+                    <h2 class="text-lg font-extrabold text-white">Engine Torque & Transmission Specifications</h2>
+                </div>
+                <button onclick="toggleSpecModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">✕</button>
+            </div>
+
+            <!-- Engine Presets -->
+            <div class="mb-4">
+                <label class="text-xs font-bold uppercase text-slate-400 mono block mb-1.5">Quick Engine Presets:</label>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button onclick="applyEnginePreset(1850, 1200, '12spd', 3.08)" class="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-left">
+                        <div class="text-xs font-bold text-white">11L Regional</div>
+                        <div class="text-[10px] text-amber-400 mono">1,850 Nm • 3.08:1</div>
+                    </button>
+                    <button onclick="applyEnginePreset(2600, 1150, '18spd', 3.55)" class="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-left">
+                        <div class="text-xs font-bold text-white">15L Cummins X15</div>
+                        <div class="text-[10px] text-amber-400 mono">2,600 Nm • 3.55:1</div>
+                    </button>
+                    <button onclick="applyEnginePreset(3500, 1100, '18spd', 4.10)" class="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-left">
+                        <div class="text-xs font-bold text-white">16L Scania V8 770</div>
+                        <div class="text-[10px] text-amber-400 mono">3,500 Nm • 4.10:1</div>
+                    </button>
+                    <button onclick="applyEnginePreset(3800, 1300, 'allison6', 4.56)" class="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-left">
+                        <div class="text-xs font-bold text-white">Extreme Puller</div>
+                        <div class="text-[10px] text-amber-400 mono">3,800 Nm • TC Auto</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sliders for Torque, Peak RPM, Transmission Type, Stall Multiplier, Final Drive -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="font-semibold text-slate-300">Peak Engine Torque</span>
+                        <span id="modal-lbl-torque" class="mono font-bold text-amber-400">2,850 Nm</span>
+                    </div>
+                    <input id="modal-slider-torque" type="range" min="1400" max="3800" step="50" value="2850" oninput="updateEngineSpec('peakTorque', this.value)" class="w-full">
+                    <p class="text-[10px] text-slate-400 mt-1">Higher engine torque climbs steeper grades but breaks traction much faster on mud/ice.</p>
+                </div>
+
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="font-semibold text-slate-300">Peak Torque RPM</span>
+                        <span id="modal-lbl-rpm" class="mono font-bold text-cyan-300">1,150 RPM</span>
+                    </div>
+                    <input id="modal-slider-rpm" type="range" min="950" max="1550" step="50" value="1150" oninput="updateEngineSpec('peakRpm', this.value)" class="w-full">
+                    <p class="text-[10px] text-slate-400 mt-1">Low-RPM luggers deliver peak torque just above idle (950-1200 RPM).</p>
+                </div>
+
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="font-semibold text-slate-300">Transmission Gearbox</span>
+                    </div>
+                    <select id="modal-select-trans" onchange="updateEngineSpec('transType', this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-xs font-semibold text-white">
+                        <option value="18spd">18-Speed Eaton Fuller Heavy (14.40:1 Crawler to 0.73:1 OD)</option>
+                        <option value="12spd">12-Speed Automated Highway (11.73:1 to 0.78:1)</option>
+                        <option value="allison6">6-Speed Allison Torque-Converter Auto (2.4x Stall Mult!)</option>
+                    </select>
+                    <p class="text-[10px] text-slate-400 mt-1">Multiplies engine torque by the active gear ratio before reaching the driveshaft.</p>
+                </div>
+
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="font-semibold text-slate-300">Differential Final Drive Ratio</span>
+                        <span id="modal-lbl-diff" class="mono font-bold text-emerald-400">3.73 : 1</span>
+                    </div>
+                    <input id="modal-slider-diff" type="range" min="2.64" max="4.88" step="0.05" value="3.73" oninput="updateEngineSpec('finalDrive', this.value)" class="w-full">
+                    <p class="text-[10px] text-slate-400 mt-1">Total Wheel Torque = Engine Torque × Gear Ratio × Final Drive × Efficiency.</p>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="toggleSpecModal()" class="px-5 py-2 rounded-xl text-xs font-extrabold bg-amber-400 hover:bg-amber-300 text-slate-950 transition">
+                    APPLY SPECS & RETURN TO LAB
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /****************************************************************************************
+         * RIGLAB: SIDE-PROFILE SEMI-TRUCK & DOUBLE-TRAILER DRIVETRAIN & TERRAIN PHYSICS ENGINE
+         * --------------------------------------------------------------------------------------
+         * Implements real longitudinal & vertical multi-axle dynamics:
+         *  - Engine torque curve Te(rpm), turbo boost lag, governor cut-off, and Jake retarder
+         *  - Clutch / Torque Converter slip & thermal heating model
+         *  - 18-Speed / 12-Speed / 6-Speed Allison gear ratios & Final Drive multiplication
+         *  - Pacejka-inspired non-linear tire slip-ratio curves μ(λ) for 6 distinct surfaces
+         *  - Weather modifiers (Sunny, Mist, Fog, Rain, Snow, Gale Headwind) with 0-100% strength
+         *  - Dynamic wheel rotational inertia: I_w * dω/dt = T_drive - R_w * F_tractive
+         *  - Real soil/mud/sand/snow excavation & sinkage physics when spinning wheels (λ > 0.30)
+         *  - Road grade elevation profiles + horizontal curvature cornering scrub (90°, U-turn, Circle)
+         ****************************************************************************************/
+
+        const simCanvas = document.getElementById('simCanvas');
+        const ctx = simCanvas.getContext('2d');
+        const gaugeCanvas = document.getElementById('gaugeCanvas');
+        const gCtx = gaugeCanvas.getContext('2d');
+        const chartCanvas = document.getElementById('chartCanvas');
+        const cCtx = chartCanvas.getContext('2d');
+
+        // 1. ROAD SURFACE DEFINITIONS (Pacejka-like slip parameters + Rolling Resistance + Sinkage Rate)
+        const SURFACES = {
+            asphalt: {
+                name: 'Dry Asphalt',
+                muPeak: 0.88,
+                muSlide: 0.64,
+                optSlip: 0.14,
+                crr: 0.007,
+                sinkRate: 0.0,     // Firm pavement: cannot dig ruts
+                maxSinkCm: 0.0,
+                topColor: '#1e293b',
+                subColor: '#0f172a',
+                particleCol: 'rgba(226, 232, 240, 0.45)' // White tire smoke on burnout
+            },
+            dirt: {
+                name: 'Compacted Dirt',
+                muPeak: 0.62,
+                muSlide: 0.46,
+                optSlip: 0.18,
+                crr: 0.025,
+                sinkRate: 1.8,     // Slight rutting under heavy spin
+                maxSinkCm: 14.0,
+                topColor: '#5c4028',
+                subColor: '#3b2818',
+                particleCol: 'rgba(161, 113, 70, 0.75)'
+            },
+            pebble: {
+                name: 'Loose Pebble / Gravel',
+                muPeak: 0.50,
+                muSlide: 0.37,
+                optSlip: 0.20,
+                crr: 0.042,
+                sinkRate: 3.4,
+                maxSinkCm: 22.0,
+                topColor: '#52525b',
+                subColor: '#27272a',
+                particleCol: 'rgba(161, 161, 170, 0.85)'
+            },
+            sand: {
+                name: 'Soft Desert Sand',
+                muPeak: 0.42,
+                muSlide: 0.27,
+                optSlip: 0.22,
+                crr: 0.082,
+                sinkRate: 8.5,     // Spinning tires rapidly excavate sand!
+                maxSinkCm: 44.0,
+                topColor: '#ca8a04',
+                subColor: '#854d0e',
+                particleCol: 'rgba(250, 204, 21, 0.8)'
+            },
+            mud: {
+                name: 'Deep Logging Mud',
+                muPeak: 0.30,
+                muSlide: 0.16,
+                optSlip: 0.20,
+                crr: 0.115,
+                sinkRate: 11.5,    // Severe bogging when spinning wheels!
+                maxSinkCm: 48.0,
+                topColor: '#3e2723',
+                subColor: '#1b0f0d',
+                particleCol: 'rgba(93, 64, 55, 0.92)'
+            },
+            ice: {
+                name: 'Glazed Black Ice',
+                muPeak: 0.11,
+                muSlide: 0.055,
+                optSlip: 0.08,
+                crr: 0.005,
+                sinkRate: 0.4,
+                maxSinkCm: 4.0,
+                topColor: '#38bdf8',
+                subColor: '#0369a1',
+                particleCol: 'rgba(186, 230, 253, 0.7)'
+            }
+        };
+
+        // 2. TRANSMISSION GEARBOX TABLES
+        const TRANSMISSIONS = {
+            '18spd': {
+                name: '18-Spd Eaton',
+                hasTorqueConverter: false,
+                gears: [
+                    { label: 'R',  ratio: -13.2 },
+                    { label: '1L', ratio: 14.40 },
+                    { label: '1H', ratio: 12.29 },
+                    { label: '2L', ratio: 8.51 },
+                    { label: '2H', ratio: 7.26 },
+                    { label: '3L', ratio: 6.05 },
+                    { label: '3H', ratio: 5.16 },
+                    { label: '4L', ratio: 4.38 },
+                    { label: '4H', ratio: 3.74 },
+                    { label: '5L', ratio: 3.20 },
+                    { label: '5H', ratio: 2.73 },
+                    { label: '6L', ratio: 2.29 },
+                    { label: '6H', ratio: 1.95 },
+                    { label: '7L', ratio: 1.62 },
+                    { label: '7H', ratio: 1.38 },
+                    { label: '8L', ratio: 1.17 },
+                    { label: '8H', ratio: 1.00 },
+                    { label: '9L', ratio: 0.86 },
+                    { label: '9H', ratio: 0.73 }
+                ]
+            },
+            '12spd': {
+                name: '12-Spd Auto',
+                hasTorqueConverter: false,
+                gears: [
+                    { label: 'R',  ratio: -10.8 },
+                    { label: '1',  ratio: 11.73 },
+                    { label: '2',  ratio: 9.21 },
+                    { label: '3',  ratio: 7.09 },
+                    { label: '4',  ratio: 5.57 },
+                    { label: '5',  ratio: 4.35 },
+                    { label: '6',  ratio: 3.41 },
+                    { label: '7',  ratio: 2.70 },
+                    { label: '8',  ratio: 2.12 },
+                    { label: '9',  ratio: 1.63 },
+                    { label: '10', ratio: 1.28 },
+                    { label: '11', ratio: 1.00 },
+                    { label: '12', ratio: 0.78 }
+                ]
+            },
+            'allison6': {
+                name: '6-Spd Allison TC',
+                hasTorqueConverter: true,
+                gears: [
+                    { label: 'R',  ratio: -5.00 },
+                    { label: '1',  ratio: 4.70 },
+                    { label: '2',  ratio: 2.21 },
+                    { label: '3',  ratio: 1.53 },
+                    { label: '4',  ratio: 1.00 },
+                    { label: '5',  ratio: 0.76 },
+                    { label: '6',  ratio: 0.67 }
+                ]
+            }
+        };
+
+        // 3. SIMULATION CONFIGURATION & STATE
+        let env = {
+            rigType: 'double',         // 'single' | 'double' | 'heavy'
+            totalMassKg: 62000,        // 62 tonnes default for B-Double
+            weather: 'sunny',          // 'sunny' | 'mist' | 'fog' | 'rainy' | 'snowy' | 'windy'
+            weatherStrength: 0.65,     // 0.0 to 1.0
+            surface: 'asphalt',        // 'asphalt' | 'dirt' | 'pebble' | 'sand' | 'mud' | 'ice'
+            coupleWeatherToSurface: true, // User can decouple weather from road surface friction if desired!
+            roadShape: 'straight',     // 'straight' | 'uphill' | 'downhill' | 'rolling' | 'sharpturn' | 'uturn' | 'circle'
+            baseGradePct: 0.0,         // -15% to +18%
+            cameraMode: 'full',        // 'full' | 'drive'
+            cameraZoom: 1.0
+        };
+
+        let powertrain = {
+            peakTorqueNm: 2850,
+            peakTorqueRpm: 1150,
+            idleRpm: 650,
+            governorRpm: 2100,
+            transType: '18spd',
+            finalDrive: 3.73,
+            diffLock: false,
+            allWheelDrive6x6: false,
+            shiftMode: 'auto',         // 'auto' | 'manual'
+            gearIndex: 5               // Starts in 3L (index 5 in 18spd)
+        };
+
+        let truck = {
+            x: 0,                      // Distance traveled along road (meters)
+            vx: 0,                     // True longitudinal ground velocity (m/s)
+            ax: 0,                     // Longitudinal acceleration (m/s^2)
+            wheelOmega: 0,             // Drive wheel angular velocity (rad/s)
+            steerWheelOmega: 0,        // Free-rolling steer/trailer wheel angular velocity (rad/s)
+            wheelRadius: 0.52,         // 1.04m tall heavy truck 11R22.5 tire
+            driveWheelAngle: 0,        // Cumulative angle (rad) for visual spoke rotation
+            freeWheelAngle: 0,         // Cumulative angle (rad) for non-driven trailer wheels
+            slipRatio: 0,              // Longitudinal slip ratio λ
+            rpm: 650,
+            engineTorqueNm: 0,
+            engineLoadPct: 0,
+            turboBoostPsi: 0,
+            transOutputTorqueNm: 0,
+            retarderTorqueNm: 0,       // Active braking torque from 5-stage Jake / Hydraulic Retarder
+            tractiveEffortN: 0,
+            gradeForceN: 0,
+            dragAndScrubN: 0,
+            clutchTempC: 75,
+            brakeDrumTempC: 65,        // Service brake drum temperature (overheats & fades if abused on downhill without Retarder!)
+            brakeFadeFactor: 1.0,      // Drops toward 0.25 when brakeDrumTempC > 350°C
+            sootIntensity: 0.05,       // 0.0 (clean) to 1.0 (heavy rolling coal black diesel smoke)
+            sinkageCm: 0,              // Excavated rut depth under drive axles (0 to 48 cm)
+            pitchBounce: 0,            // Dynamic suspension pitch from torque squat / brake dive
+            suspDeflection: [0,0,0,0,0,0,0,0],
+            latG: 0,                   // Lateral acceleration when traversing Sharp Turn / U-Turn / Circle
+            turnCurvature: 0,          // Current horizontal curvature 1/R
+            boggedTimer: 0,
+            isBogged: false,
+            bogReason: '',
+            shiftCooldown: 0
+        };
+
+        // Driver Input State
+        let controls = {
+            gas: 0,
+            prevGas: 0,
+            manualGasSlider: 0,
+            brake: 0,
+            prevBrake: 0,
+            clutch: 0,
+            jakeBrake: false,
+            retarderStage: 0,          // 0 (OFF), 1 (25%), 2 (50%), 3 (75%), 4 (100% MAX Jake + Hydraulic Retarder)
+            emergencyBrake: false      // Pneumatic Spring Parking / Emergency Brake Valve [B]
+        };
+        let keys = { w: false, s: false, shift: false };
+        let heldButton = null;
+
+        // Visual Particle Systems (Mud/Snow/Sand Roosters, Vertical Stack Diesel Exhaust Smoke, Rain, Snowflakes, Wind Streaks)
+        let tireParticles = [];
+        let exhaustParticles = [];
+        let weatherParticles = [];
+        let telemetryHistory = [];
+
+        // Initialize weather particles
+        for (let i = 0; i < 140; i++) {
+            weatherParticles.push({
+                x: Math.random() * 1600,
+                y: Math.random() * 900,
+                vx: -2 - Math.random() * 4,
+                vy: 5 + Math.random() * 8,
+                size: 1.5 + Math.random() * 2.5,
+                alpha: 0.3 + Math.random() * 0.6
+            });
+        }
+
+        /****************************************************************************************
+         * REAL-TIME PROCEDURAL WEB AUDIO API SYNTHESIZER
+         * --------------------------------------------------------------------------------------
+         * 100% self-contained procedural synthesis for:
+         *  - Multi-cylinder heavy diesel combustion pulse + load resonance filter
+         *  - High-frequency turbocharger spool whistle (1.8kHz - 4.4kHz)
+         *  - Staccato compression-release Jake / Hydraulic retarder bark
+         *  - Pneumatic range-splitter gear shift clunk + air actuator release
+         *  - Service air-brake application hiss, pad scrub & pneumatic foot-valve release ("pssshh!")
+         *  - Emergency spring-brake dump valve pop & tire lockup screech
+         *  - Tire spin / mud / gravel slip audio
+         ****************************************************************************************/
+        const soundEngine = {
+            ctx: null,
+            masterGain: null,
+            isMuted: false,
+            masterVol: 0.75,
+            initialized: false,
+
+            // Continuous Nodes
+            dieselOsc1: null,
+            dieselOsc2: null,
+            dieselSubOsc: null,
+            dieselFilter: null,
+            dieselGain: null,
+
+            turboOsc: null,
+            turboGain: null,
+
+            retarderOsc: null,
+            retarderFilter: null,
+            retarderGain: null,
+
+            noiseBuffer: null,
+            exhaustChugNode: null,
+            exhaustChugFilter: null,
+            exhaustChugGain: null,
+
+            slipNoiseNode: null,
+            slipFilter: null,
+            slipGain: null,
+
+            brakeScrubNode: null,
+            brakeScrubFilter: null,
+            brakeScrubGain: null,
+
+            init() {
+                if (this.initialized) return;
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                    this.masterGain = this.ctx.createGain();
+                    this.masterGain.gain.value = this.isMuted ? 0 : this.masterVol;
+                    this.masterGain.connect(this.ctx.destination);
+
+                    // Create 2-second white/pink noise buffer for pneumatic air, exhaust chug, and tire scrub
+                    const sampleRate = this.ctx.sampleRate;
+                    this.noiseBuffer = this.ctx.createBuffer(1, sampleRate * 2, sampleRate);
+                    const data = this.noiseBuffer.getChannelData(0);
+                    for (let i = 0; i < data.length; i++) {
+                        data[i] = Math.random() * 2 - 1;
+                    }
+
+                    // 1. Heavy Diesel Combustion Oscillators
+                    this.dieselOsc1 = this.ctx.createOscillator();
+                    this.dieselOsc2 = this.ctx.createOscillator();
+                    this.dieselSubOsc = this.ctx.createOscillator();
+                    this.dieselOsc1.type = 'sawtooth';
+                    this.dieselOsc2.type = 'square';
+                    this.dieselSubOsc.type = 'triangle';
+
+                    this.dieselFilter = this.ctx.createBiquadFilter();
+                    this.dieselFilter.type = 'lowpass';
+                    this.dieselFilter.frequency.value = 180;
+                    this.dieselFilter.Q.value = 3.2;
+
+                    this.dieselGain = this.ctx.createGain();
+                    this.dieselGain.gain.value = 0.18;
+
+                    this.dieselOsc1.connect(this.dieselFilter);
+                    this.dieselOsc2.connect(this.dieselFilter);
+                    this.dieselSubOsc.connect(this.dieselFilter);
+                    this.dieselFilter.connect(this.dieselGain);
+                    this.dieselGain.connect(this.masterGain);
+
+                    this.dieselOsc1.start();
+                    this.dieselOsc2.start();
+                    this.dieselSubOsc.start();
+
+                    // 2. Turbocharger Spool Whistle (High-Q Sine/Bandpass)
+                    this.turboOsc = this.ctx.createOscillator();
+                    this.turboOsc.type = 'sine';
+                    this.turboOsc.frequency.value = 1800;
+                    this.turboGain = this.ctx.createGain();
+                    this.turboGain.gain.value = 0.0;
+                    this.turboOsc.connect(this.turboGain);
+                    this.turboGain.connect(this.masterGain);
+                    this.turboOsc.start();
+
+                    // 3. Multi-Stage Jake / Driveline Retarder Staccato Bark
+                    this.retarderOsc = this.ctx.createOscillator();
+                    this.retarderOsc.type = 'sawtooth';
+                    this.retarderFilter = this.ctx.createBiquadFilter();
+                    this.retarderFilter.type = 'bandpass';
+                    this.retarderFilter.frequency.value = 140;
+                    this.retarderFilter.Q.value = 4.5;
+                    this.retarderGain = this.ctx.createGain();
+                    this.retarderGain.gain.value = 0.0;
+                    this.retarderOsc.connect(this.retarderFilter);
+                    this.retarderFilter.connect(this.retarderGain);
+                    this.retarderGain.connect(this.masterGain);
+                    this.retarderOsc.start();
+
+                    // 4. Exhaust Stack Airflow / Combustion Chug Noise
+                    this.exhaustChugNode = this.ctx.createBufferSource();
+                    this.exhaustChugNode.buffer = this.noiseBuffer;
+                    this.exhaustChugNode.loop = true;
+                    this.exhaustChugFilter = this.ctx.createBiquadFilter();
+                    this.exhaustChugFilter.type = 'bandpass';
+                    this.exhaustChugFilter.frequency.value = 120;
+                    this.exhaustChugFilter.Q.value = 2.0;
+                    this.exhaustChugGain = this.ctx.createGain();
+                    this.exhaustChugGain.gain.value = 0.04;
+                    this.exhaustChugNode.connect(this.exhaustChugFilter);
+                    this.exhaustChugFilter.connect(this.exhaustChugGain);
+                    this.exhaustChugGain.connect(this.masterGain);
+                    this.exhaustChugNode.start();
+
+                    // 5. Continuous Wheel-Spin / Mud / Gravel / Tire Howl Noise
+                    this.slipNoiseNode = this.ctx.createBufferSource();
+                    this.slipNoiseNode.buffer = this.noiseBuffer;
+                    this.slipNoiseNode.loop = true;
+                    this.slipFilter = this.ctx.createBiquadFilter();
+                    this.slipFilter.type = 'bandpass';
+                    this.slipFilter.frequency.value = 520;
+                    this.slipFilter.Q.value = 2.8;
+                    this.slipGain = this.ctx.createGain();
+                    this.slipGain.gain.value = 0.0;
+                    this.slipNoiseNode.connect(this.slipFilter);
+                    this.slipFilter.connect(this.slipGain);
+                    this.slipGain.connect(this.masterGain);
+                    this.slipNoiseNode.start();
+
+                    // 6. Continuous Service Brake Pad Friction Scrub
+                    this.brakeScrubNode = this.ctx.createBufferSource();
+                    this.brakeScrubNode.buffer = this.noiseBuffer;
+                    this.brakeScrubNode.loop = true;
+                    this.brakeScrubFilter = this.ctx.createBiquadFilter();
+                    this.brakeScrubFilter.type = 'bandpass';
+                    this.brakeScrubFilter.frequency.value = 950;
+                    this.brakeScrubFilter.Q.value = 4.0;
+                    this.brakeScrubGain = this.ctx.createGain();
+                    this.brakeScrubGain.gain.value = 0.0;
+                    this.brakeScrubNode.connect(this.brakeScrubFilter);
+                    this.brakeScrubFilter.connect(this.brakeScrubGain);
+                    this.brakeScrubGain.connect(this.masterGain);
+                    this.brakeScrubNode.start();
+
+                    this.initialized = true;
+                } catch (e) {
+                    console.warn('Web Audio API initialization deferred:', e);
+                }
+            },
+
+            resumeIfNeeded() {
+                if (!this.initialized) this.init();
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+
+            updateContinuous(dt) {
+                if (!this.initialized || !this.ctx) return;
+                const now = this.ctx.currentTime;
+
+                // 6-cylinder 4-stroke diesel firing frequency = (RPM / 60) * 3 cylinders per rev
+                const firingFreq = Math.max(24, (truck.rpm / 60) * 3.0);
+                const loadNorm = Math.max(0, Math.min(1, truck.engineLoadPct / 100));
+
+                // Pitch & growl modulation from RPM and Engine Load
+                this.dieselOsc1.frequency.setTargetAtTime(firingFreq, now, 0.03);
+                this.dieselOsc2.frequency.setTargetAtTime(firingFreq * 0.502, now, 0.03);
+                this.dieselSubOsc.frequency.setTargetAtTime(firingFreq * 1.5, now, 0.03);
+
+                // Under heavy engine load, open lowpass filter for deep metallic diesel bark
+                const filterCutoff = 135 + (truck.rpm - 600) * 0.14 + loadNorm * 290;
+                this.dieselFilter.frequency.setTargetAtTime(filterCutoff, now, 0.04);
+
+                const engineVol = truck.isBogged ? 0.04 : (0.12 + loadNorm * 0.20 + controls.gas * 0.08);
+                this.dieselGain.gain.setTargetAtTime(engineVol, now, 0.04);
+
+                // Exhaust stack chug / soot blast sound
+                this.exhaustChugFilter.frequency.setTargetAtTime(90 + firingFreq * 1.8 + loadNorm * 140, now, 0.04);
+                this.exhaustChugGain.gain.setTargetAtTime(0.03 + loadNorm * 0.14, now, 0.04);
+
+                // Turbocharger whistle (1850 Hz -> 4300 Hz proportional to boost PSI)
+                const boostNorm = Math.max(0, Math.min(1, truck.turboBoostPsi / 36.0));
+                this.turboOsc.frequency.setTargetAtTime(1850 + boostNorm * 2450, now, 0.05);
+                this.turboGain.gain.setTargetAtTime(boostNorm * 0.065, now, 0.05);
+
+                // Jake Brake / Multi-Stage Retarder staccato bark when active & off-throttle
+                if (controls.retarderStage > 0 && controls.gas < 0.06 && truck.rpm > 800 && !truck.isBogged) {
+                    const stageRatio = controls.retarderStage / 4;
+                    this.retarderOsc.frequency.setTargetAtTime(firingFreq * 1.0, now, 0.02);
+                    this.retarderFilter.frequency.setTargetAtTime(160 + stageRatio * 180, now, 0.03);
+                    this.retarderGain.gain.setTargetAtTime(0.12 + stageRatio * 0.22, now, 0.03);
+                } else {
+                    this.retarderGain.gain.setTargetAtTime(0.0, now, 0.03);
+                }
+
+                // Wheel-Spin / Surface Slip Audio (changes pitch by surface: asphalt screech vs mud/gravel roar)
+                const absSlip = Math.abs(truck.slipRatio);
+                const wheelSpd = Math.abs(truck.wheelOmega * truck.wheelRadius);
+                if (absSlip > 0.16 && wheelSpd > 1.2 && !truck.isBogged) {
+                    const surfFreq = env.surface === 'asphalt' ? 780 : env.surface === 'ice' ? 920 : 280;
+                    this.slipFilter.frequency.setTargetAtTime(surfFreq + Math.min(400, wheelSpd * 15), now, 0.04);
+                    this.slipGain.gain.setTargetAtTime(Math.min(0.22, (absSlip - 0.14) * 0.35), now, 0.04);
+                } else {
+                    this.slipGain.gain.setTargetAtTime(0.0, now, 0.05);
+                }
+
+                // Service Brake & Emergency Brake Friction / Skid Scrub Audio
+                const groundSpd = Math.abs(truck.vx);
+                const activeBraking = Math.max(controls.brake, controls.emergencyBrake ? 1.0 : 0);
+                if (activeBraking > 0.08 && groundSpd > 0.4) {
+                    const screechFreq = controls.emergencyBrake ? 1280 : 620 + controls.brake * 350;
+                    this.brakeScrubFilter.frequency.setTargetAtTime(screechFreq, now, 0.03);
+                    this.brakeScrubGain.gain.setTargetAtTime(Math.min(0.18, activeBraking * 0.14 * Math.min(1, groundSpd / 4)), now, 0.03);
+                } else {
+                    this.brakeScrubGain.gain.setTargetAtTime(0.0, now, 0.04);
+                }
+            },
+
+            // One-shot Pneumatic Range-Splitter Gear Shift Sound ("Psshh-Clunk!")
+            playGearShift(dir) {
+                this.resumeIfNeeded();
+                if (!this.ctx || this.isMuted) return;
+                const now = this.ctx.currentTime;
+
+                // 1. Pneumatic splitter air burst
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = this.noiseBuffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(dir > 0 ? 2200 : 1650, now);
+                const nGain = this.ctx.createGain();
+                nGain.gain.setValueAtTime(0.22, now);
+                nGain.gain.exponentialRampToValueAtTime(0.005, now + 0.14);
+                noise.connect(filter);
+                filter.connect(nGain);
+                nGain.connect(this.masterGain);
+                noise.start(now);
+                noise.stop(now + 0.15);
+
+                // 2. Heavy mechanical dog-clutch engagement clunk
+                const osc = this.ctx.createOscillator();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(dir > 0 ? 145 : 115, now + 0.03);
+                osc.frequency.exponentialRampToValueAtTime(42, now + 0.16);
+                const oGain = this.ctx.createGain();
+                oGain.gain.setValueAtTime(0.32, now + 0.03);
+                oGain.gain.exponentialRampToValueAtTime(0.005, now + 0.17);
+                osc.connect(oGain);
+                oGain.connect(this.masterGain);
+                osc.start(now + 0.03);
+                osc.stop(now + 0.18);
+            },
+
+            // One-shot Pneumatic Air Brake Release ("Pssshhh!") or Application Hiss
+            playAirBrakeBurst(isRelease = true) {
+                this.resumeIfNeeded();
+                if (!this.ctx || this.isMuted) return;
+                const now = this.ctx.currentTime;
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = this.noiseBuffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.setValueAtTime(isRelease ? 1900 : 1200, now);
+
+                const gain = this.ctx.createGain();
+                const duration = isRelease ? 0.32 : 0.16;
+                gain.gain.setValueAtTime(isRelease ? 0.26 : 0.14, now);
+                gain.gain.exponentialRampToValueAtTime(0.004, now + duration);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.masterGain);
+                noise.start(now);
+                noise.stop(now + duration + 0.02);
+            },
+
+            // Loud Pneumatic Spring Emergency Brake Dump Valve Pop/Blast
+            playEmergencyBrakeValve(engaged) {
+                this.resumeIfNeeded();
+                if (!this.ctx || this.isMuted) return;
+                const now = this.ctx.currentTime;
+
+                // Loud air dump blast
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = this.noiseBuffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(engaged ? 1450 : 2100, now);
+                filter.Q.value = 1.4;
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.38, now);
+                gain.gain.exponentialRampToValueAtTime(0.005, now + 0.42);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.masterGain);
+                noise.start(now);
+                noise.stop(now + 0.45);
+
+                // Spring chamber mechanical slam
+                const slam = this.ctx.createOscillator();
+                slam.type = 'sawtooth';
+                slam.frequency.setValueAtTime(engaged ? 95 : 130, now);
+                slam.frequency.exponentialRampToValueAtTime(30, now + 0.22);
+                const sGain = this.ctx.createGain();
+                sGain.gain.setValueAtTime(0.35, now);
+                sGain.gain.exponentialRampToValueAtTime(0.005, now + 0.24);
+                slam.connect(sGain);
+                sGain.connect(this.masterGain);
+                slam.start(now);
+                slam.stop(now + 0.25);
+            }
+        };
+
+        function toggleAudioMute() {
+            soundEngine.resumeIfNeeded();
+            soundEngine.isMuted = !soundEngine.isMuted;
+            if (soundEngine.masterGain && soundEngine.ctx) {
+                soundEngine.masterGain.gain.setTargetAtTime(
+                    soundEngine.isMuted ? 0 : soundEngine.masterVol,
+                    soundEngine.ctx.currentTime,
+                    0.03
+                );
+            }
+            document.getElementById('audio-icon').textContent = soundEngine.isMuted ? '🔇' : '🔊';
+            document.getElementById('audio-status-lbl').textContent = soundEngine.isMuted ? 'MUTED' : 'AUDIO ON';
+            document.getElementById('btn-audio-toggle').className = soundEngine.isMuted
+                ? 'text-xs font-bold mono text-rose-400 hover:text-rose-300 flex items-center gap-1'
+                : 'text-xs font-bold mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1';
+        }
+
+        function setMasterVolume(val) {
+            soundEngine.resumeIfNeeded();
+            soundEngine.masterVol = parseFloat(val) / 100;
+            if (!soundEngine.isMuted && soundEngine.masterGain && soundEngine.ctx) {
+                soundEngine.masterGain.gain.setTargetAtTime(soundEngine.masterVol, soundEngine.ctx.currentTime, 0.03);
+            }
+        }
+
+        /****************************************************************************************
+         * UI CONTROLS & CONFIGURATION HANDLERS
+         ****************************************************************************************/
+        function setRigType(type) {
+            env.rigType = type;
+            ['single', 'double', 'heavy'].forEach(t => {
+                const btn = document.getElementById('rig-' + t);
+                if (t === type) {
+                    btn.className = 'px-2.5 py-1 rounded-md text-xs font-semibold transition flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40';
+                } else {
+                    btn.className = 'px-2.5 py-1 rounded-md text-xs font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white border border-transparent';
+                }
+            });
+
+            const defaultMass = type === 'single' ? 36 : type === 'double' ? 62 : 78;
+            document.getElementById('slider-mass').value = defaultMass;
+            setPayloadMass(defaultMass);
+        }
+
+        function setPayloadMass(tonnes) {
+            const t = parseFloat(tonnes);
+            env.totalMassKg = t * 1000;
+            document.getElementById('label-mass').textContent = t.toFixed(1) + ' t';
+        }
+
+        function setCameraMode(mode) {
+            env.cameraMode = mode;
+            document.getElementById('cam-full').className = mode === 'full'
+                ? 'px-2 py-0.5 rounded font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                : 'px-2 py-0.5 rounded font-semibold text-slate-400 hover:text-white';
+            document.getElementById('cam-drive').className = mode === 'drive'
+                ? 'px-2 py-0.5 rounded font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                : 'px-2 py-0.5 rounded font-semibold text-slate-400 hover:text-white';
+        }
+
+        function toggleDiffLock() {
+            powertrain.diffLock = !powertrain.diffLock;
+            const btn = document.getElementById('btn-difflock');
+            const dot = document.getElementById('difflock-dot');
+            const lbl = document.getElementById('difflock-label');
+            if (powertrain.diffLock) {
+                btn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold mono bg-amber-500/20 text-amber-300 border border-amber-500/50 transition flex items-center gap-1.5';
+                dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+                lbl.textContent = 'DIFF LOCK: LOCKED [L]';
+            } else {
+                btn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold mono bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-400 transition flex items-center gap-1.5';
+                dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+                lbl.textContent = 'DIFF LOCK: OPEN [L]';
+            }
+        }
+
+        function toggleFrontDrive() {
+            powertrain.allWheelDrive6x6 = !powertrain.allWheelDrive6x6;
+            const btn = document.getElementById('btn-awd');
+            const lbl = document.getElementById('awd-label');
+            if (powertrain.allWheelDrive6x6) {
+                btn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 transition';
+                lbl.textContent = 'DRIVE: 6x6 ALL-WHEEL';
+            } else {
+                btn.className = 'px-2.5 py-1 rounded-lg text-xs font-bold mono bg-slate-800 text-slate-300 border border-slate-700 hover:border-cyan-400 transition';
+                lbl.textContent = 'DRIVE: 6x4 TANDEM';
+            }
+        }
+
+        function setWeather(w) {
+            env.weather = w;
+            updateEffectiveGripBadge();
+        }
+
+        function setWeatherStrength(val) {
+            env.weatherStrength = parseFloat(val) / 100;
+            document.getElementById('label-weather-strength').textContent = val + '%';
+            updateEffectiveGripBadge();
+        }
+
+        function setSurface(s) {
+            env.surface = s;
+            // Reset sinkage slightly when changing surface so user can test immediately
+            truck.sinkageCm = 0;
+            updateEffectiveGripBadge();
+        }
+
+        function toggleWeatherSurfaceCoupling() {
+            env.coupleWeatherToSurface = !env.coupleWeatherToSurface;
+            const btn = document.getElementById('btn-weather-surface-link');
+            if (env.coupleWeatherToSurface) {
+                btn.textContent = 'Wx→Road: COUPLED';
+                btn.className = 'px-1.5 py-0.5 rounded text-[9px] font-bold mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 transition';
+            } else {
+                btn.textContent = 'Wx→Road: INDEPENDENT';
+                btn.className = 'px-1.5 py-0.5 rounded text-[9px] font-bold mono bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition';
+            }
+            updateEffectiveGripBadge();
+        }
+
+        function setRoadShape(shape) {
+            env.roadShape = shape;
+            const gradeSlider = document.getElementById('slider-grade');
+            if (shape === 'straight') {
+                setCustomGrade(0);
+                gradeSlider.value = 0;
+            } else if (shape === 'uphill') {
+                setCustomGrade(10);
+                gradeSlider.value = 10;
+            } else if (shape === 'downhill') {
+                setCustomGrade(-9);
+                gradeSlider.value = -9;
+            } else if (shape === 'rolling') {
+                setCustomGrade(7);
+                gradeSlider.value = 7;
+            } else if (shape === 'sharpturn' || shape === 'uturn' || shape === 'circle') {
+                if (Math.abs(env.baseGradePct) > 8) {
+                    setCustomGrade(2);
+                    gradeSlider.value = 2;
+                }
+            }
+            updateEffectiveGripBadge();
+        }
+
+        function setCustomGrade(val) {
+            env.baseGradePct = parseFloat(val);
+            const sign = env.baseGradePct > 0 ? '+' : '';
+            document.getElementById('label-grade').textContent = sign + env.baseGradePct.toFixed(1) + '%';
+            updateEffectiveGripBadge();
+        }
+
+        function setShiftMode(mode) {
+            powertrain.shiftMode = mode;
+            document.getElementById('shift-auto').className = mode === 'auto'
+                ? 'px-2 py-0.5 rounded text-[10px] font-bold mono bg-indigo-500/25 text-indigo-300 border border-indigo-500/40'
+                : 'px-2 py-0.5 rounded text-[10px] font-bold mono bg-slate-800 text-slate-400 border border-slate-700';
+            document.getElementById('shift-manual').className = mode === 'manual'
+                ? 'px-2 py-0.5 rounded text-[10px] font-bold mono bg-indigo-500/25 text-indigo-300 border border-indigo-500/40'
+                : 'px-2 py-0.5 rounded text-[10px] font-bold mono bg-slate-800 text-slate-400 border border-slate-700';
+        }
+
+        function shiftGear(dir) {
+            const gears = TRANSMISSIONS[powertrain.transType].gears;
+            const prevIdx = powertrain.gearIndex;
+            powertrain.gearIndex = Math.max(0, Math.min(gears.length - 1, powertrain.gearIndex + dir));
+            document.getElementById('hud-gear').textContent = gears[powertrain.gearIndex].label;
+            if (powertrain.gearIndex !== prevIdx) {
+                soundEngine.playGearShift(dir);
+            }
+        }
+
+        // 5-Stage Jake / Hydraulic Driveline Retarder Controls
+        function setRetarderStage(stage) {
+            soundEngine.resumeIfNeeded();
+            controls.retarderStage = Math.max(0, Math.min(4, stage));
+            controls.jakeBrake = controls.retarderStage > 0;
+            const lbl = document.getElementById('lbl-jake');
+            const stageNames = ['OFF (0/4)', 'STG 1 (25%)', 'STG 2 (50%)', 'STG 3 (75%)', 'MAX (100%)'];
+            lbl.textContent = stageNames[controls.retarderStage];
+            lbl.className = controls.retarderStage > 0
+                ? 'text-[10px] font-extrabold mono text-amber-300'
+                : 'text-[10px] font-extrabold mono text-slate-400';
+
+            for (let i = 1; i <= 4; i++) {
+                const seg = document.getElementById('ret-seg-' + i);
+                if (seg) {
+                    seg.className = i <= controls.retarderStage
+                        ? (i === 4 ? 'h-1 rounded bg-rose-400' : 'h-1 rounded bg-amber-400')
+                        : 'h-1 rounded bg-slate-800';
+                }
+            }
+            updateEffectiveGripBadge();
+        }
+
+        function cycleRetarderStage(delta = 1) {
+            const next = (controls.retarderStage + delta) % 5;
+            setRetarderStage(next);
+            soundEngine.playAirBrakeBurst(false);
+        }
+
+        function toggleJakeBrake() {
+            cycleRetarderStage(1);
+        }
+
+        // Dedicated Pneumatic Spring Emergency / Parking Brake Valve
+        function toggleEmergencyBrake() {
+            soundEngine.resumeIfNeeded();
+            controls.emergencyBrake = !controls.emergencyBrake;
+            soundEngine.playEmergencyBrakeValve(controls.emergencyBrake);
+
+            const btn = document.getElementById('btn-ebrake');
+            const lbl = document.getElementById('lbl-ebrake');
+            if (controls.emergencyBrake) {
+                btn.className = 'w-14 h-12 rounded-lg bg-rose-600 hover:bg-rose-500 border-2 border-white flex flex-col items-center justify-center transition shadow-lg shadow-rose-500/40 animate-pulse';
+                lbl.textContent = 'LOCKED!';
+                lbl.className = 'text-[10px] font-extrabold mono text-rose-400';
+            } else {
+                btn.className = 'w-14 h-12 rounded-lg bg-slate-900 hover:bg-rose-950/90 border-2 border-rose-500/60 flex flex-col items-center justify-center transition shadow-inner';
+                lbl.textContent = 'RELEASED';
+                lbl.className = 'text-[10px] font-extrabold mono text-slate-400';
+            }
+        }
+
+        function toggleSpecModal() {
+            document.getElementById('spec-modal').classList.toggle('hidden');
+        }
+
+        function updateEngineSpec(key, val) {
+            if (key === 'peakTorque') {
+                powertrain.peakTorqueNm = parseFloat(val);
+                document.getElementById('quick-torque-lbl').textContent = powertrain.peakTorqueNm.toLocaleString() + ' Nm';
+                document.getElementById('modal-lbl-torque').textContent = powertrain.peakTorqueNm.toLocaleString() + ' Nm';
+                document.getElementById('quick-slider-torque').value = powertrain.peakTorqueNm;
+                document.getElementById('modal-slider-torque').value = powertrain.peakTorqueNm;
+            } else if (key === 'peakRpm') {
+                powertrain.peakTorqueRpm = parseFloat(val);
+                document.getElementById('modal-lbl-rpm').textContent = powertrain.peakTorqueRpm + ' RPM';
+            } else if (key === 'transType') {
+                powertrain.transType = val;
+                const gears = TRANSMISSIONS[val].gears;
+                powertrain.gearIndex = Math.min(powertrain.gearIndex, gears.length - 1);
+                if (powertrain.gearIndex === 0) powertrain.gearIndex = 2;
+                document.getElementById('hud-gear').textContent = gears[powertrain.gearIndex].label;
+            } else if (key === 'finalDrive') {
+                powertrain.finalDrive = parseFloat(val);
+                document.getElementById('quick-diff-lbl').textContent = powertrain.finalDrive.toFixed(2) + ' : 1';
+                document.getElementById('modal-lbl-diff').textContent = powertrain.finalDrive.toFixed(2) + ' : 1';
+                document.getElementById('quick-slider-diff').value = powertrain.finalDrive;
+                document.getElementById('modal-slider-diff').value = powertrain.finalDrive;
+            }
+
+            const tName = TRANSMISSIONS[powertrain.transType].name;
+            document.getElementById('hud-spec-summary').textContent = `${powertrain.peakTorqueNm} Nm • ${tName} • ${powertrain.finalDrive.toFixed(2)}:1`;
+        }
+
+        function applyEnginePreset(torque, rpm, trans, diff) {
+            document.getElementById('modal-select-trans').value = trans;
+            updateEngineSpec('peakTorque', torque);
+            updateEngineSpec('peakRpm', rpm);
+            updateEngineSpec('transType', trans);
+            updateEngineSpec('finalDrive', diff);
+        }
+
+        // Pedal Input Handlers
+        function holdPedal(type, val) {
+            soundEngine.resumeIfNeeded();
+            if (type === 'brake' && controls.brake < 0.1) {
+                soundEngine.playAirBrakeBurst(false);
+            }
+            heldButton = { type, val };
+        }
+        function releasePedal(type) {
+            if (type === 'brake' && controls.brake > 0.25) {
+                soundEngine.playAirBrakeBurst(true);
+            }
+            if (heldButton && heldButton.type === type) heldButton = null;
+        }
+        function setManualThrottleSlider(val) {
+            soundEngine.resumeIfNeeded();
+            controls.manualGasSlider = parseFloat(val) / 100;
+        }
+
+        window.addEventListener('keydown', (e) => {
+            soundEngine.resumeIfNeeded();
+            const k = e.key.toLowerCase();
+            if (k === 'w' || e.key === 'ArrowUp') keys.w = true;
+            if (k === 's' || e.key === 'ArrowDown') {
+                if (!keys.s && controls.brake < 0.1) soundEngine.playAirBrakeBurst(false);
+                keys.s = true;
+            }
+            if (e.key === 'Shift' || k === 'c') keys.shift = true;
+            if (e.key === ' ' || k === 'v') { e.preventDefault(); cycleRetarderStage(1); }
+            if (k === 'b') { e.preventDefault(); toggleEmergencyBrake(); }
+            if (k === 'm') { e.preventDefault(); toggleAudioMute(); }
+            if (k === 'e') shiftGear(1);
+            if (k === 'q') shiftGear(-1);
+            if (k === 'l') toggleDiffLock();
+            if (k === 'r') resetSession();
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'w' || e.key === 'ArrowUp') keys.w = false;
+            if (k === 's' || e.key === 'ArrowDown') {
+                if (controls.brake > 0.25) soundEngine.playAirBrakeBurst(true);
+                keys.s = false;
+            }
+            if (e.key === 'Shift' || k === 'c') keys.shift = false;
+        });
+
+        function engageAssistAndRestart() {
+            if (!powertrain.diffLock) toggleDiffLock();
+            if (!powertrain.allWheelDrive6x6) toggleFrontDrive();
+            if (controls.emergencyBrake) toggleEmergencyBrake();
+            controls.manualGasSlider = 0.38;
+            document.getElementById('slider-throttle').value = 38;
+            resetSession();
+        }
+
+        function resetSession() {
+            truck.x = 0;
+            truck.vx = 0;
+            truck.ax = 0;
+            truck.wheelOmega = 0;
+            truck.steerWheelOmega = 0;
+            truck.slipRatio = 0;
+            truck.rpm = powertrain.idleRpm;
+            truck.engineTorqueNm = 0;
+            truck.transOutputTorqueNm = 0;
+            truck.retarderTorqueNm = 0;
+            truck.clutchTempC = 75;
+            truck.brakeDrumTempC = 65;
+            truck.brakeFadeFactor = 1.0;
+            truck.sinkageCm = 0;
+            truck.boggedTimer = 0;
+            truck.isBogged = false;
+            truck.pitchBounce = 0;
+            tireParticles = [];
+            exhaustParticles = [];
+
+            if (controls.emergencyBrake) toggleEmergencyBrake();
+
+            // Pick sensible starting gear
+            const gears = TRANSMISSIONS[powertrain.transType].gears;
+            powertrain.gearIndex = powertrain.transType === '18spd' ? 3 : 2; // 2L or 2nd gear
+            document.getElementById('hud-gear').textContent = gears[powertrain.gearIndex].label;
+
+            document.getElementById('stuck-modal').classList.add('hidden');
+            updateEffectiveGripBadge();
+        }
+
+        /****************************************************************************************
+         * CORE PHYSICS ENGINE: SURFACE GRIP, WEATHER MODIFIERS, POWERTRAIN & SINKAGE
+         ****************************************************************************************/
+        function getWeatherGripMultiplier() {
+            // If user set Weather -> Road Surface to INDEPENDENT (decoupled), weather only affects visibility, wind drag & snow depth without altering base surface μ!
+            if (!env.coupleWeatherToSurface) return 1.0;
+
+            const s = env.weatherStrength;
+            switch (env.weather) {
+                case 'sunny': return 1.0;
+                case 'mist':  return 1.0 - 0.10 * s;
+                case 'fog':   return 1.0 - 0.14 * s;
+                case 'rainy': return 1.0 - 0.28 * s;
+                case 'snowy': return 1.0 - 0.48 * s;
+                case 'windy': return 1.0 - 0.04 * s;
+                default: return 1.0;
+            }
+        }
+
+        function updateEffectiveGripBadge() {
+            const surf = SURFACES[env.surface];
+            const wMod = getWeatherGripMultiplier();
+            const effMuNum = surf.muPeak * wMod;
+            const effMu = effMuNum.toFixed(2);
+            document.getElementById('badge-eff-mu').textContent = `Eff μ: ${effMu}`;
+
+            // Update "Choose Wisely" Tactical Matrix Advisory
+            const advEl = document.getElementById('hud-tactical-advice');
+            const pillEl = document.getElementById('hud-tactical-risk-pill');
+            if (!advEl || !pillEl) return;
+
+            if ((env.surface === 'mud' || env.surface === 'sand') && (env.weather === 'rainy' || env.weather === 'snowy') && !powertrain.diffLock) {
+                advEl.textContent = 'LOCK DIFF [L] + 6x6 + FEATHER!';
+                advEl.className = 'text-[10px] font-extrabold mono text-rose-400 truncate';
+                pillEl.textContent = 'BOG HAZARD';
+                pillEl.className = 'text-[9px] mono font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 shrink-0';
+            } else if (env.baseGradePct < -5 && controls.retarderStage === 0) {
+                advEl.textContent = 'USE RETARDER [V] ON DESCENT!';
+                advEl.className = 'text-[10px] font-extrabold mono text-amber-300 truncate';
+                pillEl.textContent = 'BRAKE FADE';
+                pillEl.className = 'text-[9px] mono font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0';
+            } else if (effMuNum < 0.25) {
+                advEl.textContent = 'START IN 3L/4L • LOW TORQUE!';
+                advEl.className = 'text-[10px] font-extrabold mono text-cyan-300 truncate';
+                pillEl.textContent = 'ICE SPIN';
+                pillEl.className = 'text-[9px] mono font-bold px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shrink-0';
+            } else if (env.baseGradePct > 7) {
+                advEl.textContent = 'USE CRAWLER 1L/2L + DIFF LOCK';
+                advEl.className = 'text-[10px] font-extrabold mono text-amber-300 truncate';
+                pillEl.textContent = 'HEAVY GRADE';
+                pillEl.className = 'text-[9px] mono font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0';
+            } else {
+                advEl.textContent = `μ=${effMu} • SETUP BALANCED`;
+                advEl.className = 'text-[10px] font-extrabold mono text-emerald-400 truncate';
+                pillEl.textContent = 'OPTIMAL';
+                pillEl.className = 'text-[9px] mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0';
+            }
+        }
+
+        /**
+         * Returns current road slope grade (%) and horizontal turn curvature (1/R) at position x
+         */
+        function getRoadProfileAt(x) {
+            let gradePct = env.baseGradePct;
+            let curvature = 0; // 1/m (0 = straight, 0.025 = 40m radius turn, 0.055 = 18m tight U-turn)
+
+            if (env.roadShape === 'rolling') {
+                // Undulating sine wave hills
+                const amp = Math.max(4, Math.abs(env.baseGradePct));
+                gradePct = amp * Math.sin(x * 0.035);
+            } else if (env.roadShape === 'sharpturn') {
+                // Periodic 90-degree sharp turns with approach and exit
+                const phase = (x % 140) / 140;
+                if (phase > 0.25 && phase < 0.75) {
+                    curvature = 0.028 * Math.sin(((phase - 0.25) / 0.5) * Math.PI);
+                }
+            } else if (env.roadShape === 'uturn') {
+                // Tight 180-degree hairpin bend (severe trailer off-tracking & tire scrub!)
+                const phase = (x % 120) / 120;
+                if (phase > 0.15 && phase < 0.85) {
+                    curvature = 0.052 * Math.sin(((phase - 0.15) / 0.7) * Math.PI);
+                }
+            } else if (env.roadShape === 'circle') {
+                // Continuous constant-radius skidpad circle
+                curvature = 0.036;
+            }
+
+            return { gradePct, slopeRad: Math.atan(gradePct / 100), curvature };
+        }
+
+        /**
+         * Diesel Engine Torque Curve Te(rpm)
+         * Realistic heavy-duty flat-top low-RPM torque curve with governor droop between 1850 and 2150 RPM
+         */
+        function computeMaxEngineTorqueAtRpm(rpm) {
+            const peakT = powertrain.peakTorqueNm;
+            const peakRpm = powertrain.peakTorqueRpm;
+
+            if (rpm <= 600) return peakT * 0.52;
+            if (rpm < peakRpm) {
+                const t = (rpm - 600) / Math.max(100, peakRpm - 600);
+                return peakT * (0.58 + 0.42 * Math.sin(t * Math.PI * 0.5));
+            }
+            if (rpm <= 1550) {
+                return peakT * (1.0 - (rpm - peakRpm) * 0.00012);
+            }
+            if (rpm <= 1900) {
+                return peakT * (0.94 - ((rpm - 1550) / 350) * 0.22);
+            }
+            if (rpm <= 2200) {
+                // Governor cut-off droop
+                return Math.max(0, peakT * 0.72 * (1 - (rpm - 1900) / 260));
+            }
+            return 0;
+        }
+
+        /**
+         * Main 60Hz Sub-Stepped Physics Integration Loop
+         */
+        function stepPhysics(dt) {
+            if (truck.isBogged) return;
+
+            // Smooth pedal inputs
+            const wantsGas = keys.w || (heldButton && heldButton.type === 'gas');
+            const wantsBrake = keys.s || (heldButton && heldButton.type === 'brake');
+            const wantsClutch = keys.shift || (heldButton && heldButton.type === 'clutch');
+
+            if (wantsGas) {
+                controls.gas = Math.min(1.0, controls.gas + dt * 2.6);
+            } else if (controls.manualGasSlider > 0.01) {
+                controls.gas += (controls.manualGasSlider - controls.gas) * Math.min(1, dt * 8);
+            } else {
+                controls.gas = Math.max(0, controls.gas - dt * 3.5);
+            }
+
+            if (wantsBrake) {
+                controls.brake = Math.min(1.0, controls.brake + dt * 3.5);
+            } else {
+                controls.brake = Math.max(0, controls.brake - dt * 4.5);
+            }
+
+            if (wantsClutch) {
+                controls.clutch = Math.min(1.0, controls.clutch + dt * 5.0);
+            } else {
+                controls.clutch = Math.max(0, controls.clutch - dt * 4.0);
+            }
+
+            // Update UI pedal labels
+            document.getElementById('lbl-throttle').textContent = Math.round(controls.gas * 100) + '%';
+            document.getElementById('lbl-brake').textContent = Math.round(controls.brake * 100) + '%';
+            document.getElementById('lbl-clutch').textContent = Math.round(controls.clutch * 100) + '%';
+
+            // Run 4 physics sub-steps per frame for stiff wheel-inertia stability
+            const subSteps = 4;
+            const subDt = dt / subSteps;
+
+            const surf = SURFACES[env.surface];
+            const weatherGripMod = getWeatherGripMultiplier();
+            const road = getRoadProfileAt(truck.x);
+            truck.turnCurvature = road.curvature;
+
+            const transObj = TRANSMISSIONS[powertrain.transType];
+            const currentGearObj = transObj.gears[powertrain.gearIndex];
+            const gearRatio = currentGearObj.ratio;
+            const totalRatio = gearRatio * powertrain.finalDrive;
+
+            for (let step = 0; step < subSteps; step++) {
+                // 1. Engine RPM & Clutch / Torque-Converter Coupling
+                const wheelConfirmedRpm = Math.abs(truck.wheelOmega) * Math.abs(totalRatio) * (60 / (2 * Math.PI));
+
+                // Automatic anti-stall clutch engagement below 750 RPM
+                let autoClutchSlip = 0;
+                if (wheelConfirmedRpm < 820) {
+                    autoClutchSlip = Math.min(1.0, (820 - wheelConfirmedRpm) / 300);
+                }
+                const effectiveClutchEngagement = (1.0 - controls.clutch) * (1.0 - autoClutchSlip * 0.78);
+
+                // Target free engine RPM from throttle pedal
+                const targetFreeRpm = powertrain.idleRpm + controls.gas * (powertrain.governorRpm - powertrain.idleRpm);
+                const coupledRpm = Math.max(powertrain.idleRpm, wheelConfirmedRpm);
+
+                truck.rpm = coupledRpm * effectiveClutchEngagement + targetFreeRpm * (1.0 - effectiveClutchEngagement);
+                truck.rpm = Math.max(550, Math.min(2250, truck.rpm));
+
+                // 2. Engine Torque Output & Jake Brake Retarder
+                const maxAvailTorque = computeMaxEngineTorqueAtRpm(truck.rpm);
+                // Turbo lag dynamics
+                const targetBoost = controls.gas * (truck.rpm / 1600) * 36.0;
+                truck.turboBoostPsi += (Math.min(38, targetBoost) - truck.turboBoostPsi) * subDt * 3.5;
+
+                // Boost affects low-end torque delivery slightly
+                const boostFactor = 0.82 + 0.18 * (truck.turboBoostPsi / 36.0);
+                let netEngineTorque = controls.gas * maxAvailTorque * boostFactor;
+
+                // 2B. 5-Stage Jake / Hydraulic Driveline Retarder Torque when off-throttle
+                truck.retarderTorqueNm = 0;
+                if (controls.gas < 0.05 && truck.rpm > 780) {
+                    const baseFriction = -180 * (truck.rpm / 1900);
+                    if (controls.retarderStage > 0) {
+                        // Up to -2,400 Nm engine + driveline retarder braking torque at stage 4
+                        const stageFactor = controls.retarderStage / 4.0;
+                        truck.retarderTorqueNm = -2400 * stageFactor * Math.min(1.25, truck.rpm / 1650);
+                        netEngineTorque = baseFriction + truck.retarderTorqueNm;
+                    } else {
+                        netEngineTorque = baseFriction;
+                    }
+                }
+
+                truck.engineTorqueNm = netEngineTorque;
+                truck.engineLoadPct = maxAvailTorque > 0 ? Math.max(0, Math.min(100, (netEngineTorque / maxAvailTorque) * 100)) : 0;
+
+                // Compute Diesel Soot / Exhaust Smoke Intensity based on Engine Load % & Turbo Lag ("Rolling Coal" on low-boost lugging!)
+                const turboDeficit = Math.max(0, controls.gas - (truck.turboBoostPsi / 28.0));
+                const targetSoot = Math.min(1.0, (truck.engineLoadPct / 100) * 0.78 + turboDeficit * 0.55);
+                truck.sootIntensity += (targetSoot - truck.sootIntensity) * subDt * 6.0;
+
+                // 3. Torque Converter Multiplication (if Allison 6-spd) & Clutch Thermal Heating
+                let tcMultiplier = 1.0;
+                if (transObj.hasTorqueConverter && wheelConfirmedRpm < 1250 && controls.gas > 0.2) {
+                    const stallRatio = 1.0 - Math.min(1.0, wheelConfirmedRpm / 1250);
+                    tcMultiplier = 1.0 + 1.35 * stallRatio; // Up to 2.35x stall multiplication
+                }
+
+                // Clutch heat buildup when slipping under heavy torque!
+                const rpmSlipDelta = Math.abs(truck.rpm - wheelConfirmedRpm);
+                if (controls.gas > 0.25 && rpmSlipDelta > 220 && controls.clutch < 0.9) {
+                    const slipPowerKw = (Math.abs(netEngineTorque) * (rpmSlipDelta * 2 * Math.PI / 60)) / 1000;
+                    truck.clutchTempC += slipPowerKw * 0.018 * subDt;
+                } else {
+                    // Natural cooling toward 75°C ambient oil temp
+                    truck.clutchTempC = Math.max(75, truck.clutchTempC - 6.5 * subDt);
+                }
+
+                // 4. Transmission & Final Drive Output Torque to Drive Axles
+                const drivelineEfficiency = 0.92;
+                const clutchTransmitFactor = controls.clutch > 0.92 ? 0 : Math.max(0.22, 1.0 - controls.clutch);
+                truck.transOutputTorqueNm = netEngineTorque * gearRatio * tcMultiplier * drivelineEfficiency * clutchTransmitFactor;
+                const driveAxleTorqueNm = truck.transOutputTorqueNm * powertrain.finalDrive;
+
+                // 5. Normal Load Distribution (Fz) on Driven vs Non-Driven Axles
+                const g = 9.81;
+                const totalWeightN = env.totalMassKg * g * Math.cos(road.slopeRad);
+
+                // Base fraction of GVW carried by the tractor's tandem drive axles
+                // Single Semi (36t): Tandem drives carry ~44% of weight
+                // Double B-Double (62t): Tandem drives carry ~29% of total weight
+                // Extreme 78t Road Train: Tandem drives carry ~24% of total weight!
+                let driveWeightFraction = env.rigType === 'single' ? 0.44 : env.rigType === 'double' ? 0.29 : 0.24;
+                if (powertrain.allWheelDrive6x6) {
+                    driveWeightFraction += 0.11; // Steer axle also pulls!
+                }
+
+                // Dynamic longitudinal weight transfer onto rear drive axles under acceleration / uphill slope
+                const pitchShift = Math.sin(road.slopeRad) * 0.04 + (truck.ax / 9.81) * 0.05;
+                const Fz_drive = Math.max(25000, totalWeightN * (driveWeightFraction + pitchShift));
+
+                // 6. Cornering Lateral Force & Friction Ellipse Reduction (Sharp Turn, U-Turn, Circle)
+                // F_lat = m * v^2 * curvature
+                const vAbs = Math.abs(truck.vx);
+                truck.latG = (vAbs * vAbs * road.curvature) / g;
+
+                // Cornering uses up part of the tire's friction circle:
+                const corneringGripPenalty = Math.max(0.32, Math.sqrt(Math.max(0.1, 1.0 - Math.pow(truck.latG / Math.max(0.15, surf.muPeak * weatherGripMod), 2))));
+
+                // Open Differential vs Locked Differential Penalty:
+                // On slick/uneven surfaces or tight turns, an OPEN diff leaks torque to the lightest/spinning wheel!
+                let diffEfficiency = 1.0;
+                if (!powertrain.diffLock) {
+                    if (env.surface === 'mud' || env.surface === 'ice' || env.surface === 'sand' || env.weather === 'snowy') {
+                        diffEfficiency = 0.58; // One side spins wildly while the other loses torque
+                    } else if (road.curvature > 0.015) {
+                        diffEfficiency = 0.72; // Inside wheel unloads and spins in sharp turns
+                    }
+                }
+
+                // 7. Compute Longitudinal Wheel Slip Ratio (λ) & Pacejka Friction μ(λ)
+                const vWheelRim = truck.wheelOmega * truck.wheelRadius;
+                const denom = Math.max(1.2, Math.abs(vWheelRim), Math.abs(truck.vx));
+                truck.slipRatio = (vWheelRim - truck.vx) / denom;
+
+                const absSlip = Math.abs(truck.slipRatio);
+                const sOpt = surf.optSlip;
+                let muRaw = 0;
+
+                if (absSlip <= sOpt) {
+                    // Rising elastic tire deformation region up to peak grip
+                    muRaw = surf.muPeak * Math.sin((absSlip / sOpt) * (Math.PI * 0.5));
+                } else {
+                    // Post-peak sliding friction drop-off when spinning wheels!
+                    const excess = Math.min(1.0, (absSlip - sOpt) / (1.0 - sOpt));
+                    muRaw = surf.muPeak - (surf.muPeak - surf.muSlide) * Math.pow(excess, 0.75);
+                }
+
+                // Apply Weather, Cornering Ellipse, and Diff-Lock modifiers
+                const effectiveMu = muRaw * weatherGripMod * corneringGripPenalty * diffEfficiency;
+                const signedMu = Math.sign(truck.slipRatio) * effectiveMu;
+
+                // Tractive Force generated at the tire-ground interface (N)
+                let F_tractive = signedMu * Fz_drive;
+
+                // 7B. Service Air Brake Force + Brake Drum Thermal Heating & Brake Fade + Emergency Spring Brake
+                // If driver rides service brakes on a steep downhill instead of using the Retarder, drums overheat (>350°C) and fade!
+                const brakePowerKw = (controls.brake * totalWeightN * 0.5 * Math.abs(truck.vx)) / 1000;
+                if (controls.brake > 0.05 && Math.abs(truck.vx) > 0.5) {
+                    truck.brakeDrumTempC += brakePowerKw * 0.0022 * subDt;
+                } else {
+                    truck.brakeDrumTempC = Math.max(65, truck.brakeDrumTempC - (4.5 + Math.abs(truck.vx) * 0.35) * subDt);
+                }
+                // Compute brake fade above 260°C
+                if (truck.brakeDrumTempC > 260) {
+                    truck.brakeFadeFactor = Math.max(0.22, 1.0 - (truck.brakeDrumTempC - 260) / 380);
+                } else {
+                    truck.brakeFadeFactor = 1.0;
+                }
+
+                const maxServiceBrakeN = totalWeightN * (surf.muPeak * weatherGripMod) * 0.85 * truck.brakeFadeFactor;
+                const F_serviceBrake = controls.brake * maxServiceBrakeN;
+
+                // Dedicated Pneumatic Spring Emergency / Parking Brake (locks rear tractor + trailer spring chambers mechanically)
+                const F_emergencyBrake = controls.emergencyBrake
+                    ? totalWeightN * Math.max(0.32, (surf.muPeak * weatherGripMod) * 0.95)
+                    : 0;
+
+                // 8. Drive Wheel Rotational Acceleration: I_w * dω/dt = T_drive - R_w * F_tractive - T_brake_drive
+                const driveWheelsInertia = powertrain.allWheelDrive6x6 ? 195.0 : 155.0; // kg*m^2 for heavy dual steel/alloy wheels + axles
+                const eBrakeWheelTorque = controls.emergencyBrake ? 55000 * Math.sign(truck.wheelOmega) : 0;
+                const driveBrakeTorque = (controls.brake * 28000 * truck.brakeFadeFactor * Math.sign(truck.wheelOmega)) + eBrakeWheelTorque;
+                const netWheelTorque = driveAxleTorqueNm - (F_tractive * truck.wheelRadius) - driveBrakeTorque;
+
+                truck.wheelOmega += (netWheelTorque / driveWheelsInertia) * subDt;
+
+                // Prevent brake or emergency brake from reversing wheel rotation
+                if (controls.gas < 0.02 && (controls.brake > 0.1 || controls.emergencyBrake) && Math.abs(truck.wheelOmega) < 0.8) {
+                    truck.wheelOmega = 0;
+                }
+
+                // 9. Soil / Mud / Sand / Snow Excavation & Axle Sinkage Physics
+                // When spinning wheels aggressively (absSlip > 0.28) on soft ground, tires dig ruts!
+                let snowExtraSinkRate = (env.weather === 'snowy') ? 5.5 * env.weatherStrength : 0;
+                let maxAllowedSink = Math.max(surf.maxSinkCm, env.weather === 'snowy' ? 36 * env.weatherStrength : 0);
+                const totalSinkRate = surf.sinkRate + snowExtraSinkRate;
+
+                if (totalSinkRate > 0) {
+                    if (absSlip > 0.26 && Math.abs(vWheelRim) > 1.2) {
+                        // Digging deeper into the mud/sand/snow!
+                        const digSpeed = (absSlip - 0.22) * totalSinkRate * (1.0 + (env.totalMassKg / 65000) * 0.5);
+                        truck.sinkageCm = Math.min(maxAllowedSink, truck.sinkageCm + digSpeed * subDt);
+                    } else if (Math.abs(truck.vx) > 0.8 && absSlip < 0.22) {
+                        // Moving forward with good grip climbs up onto firmer top surface!
+                        truck.sinkageCm = Math.max(0, truck.sinkageCm - Math.abs(truck.vx) * 1.8 * subDt);
+                    }
+                } else {
+                    truck.sinkageCm = Math.max(0, truck.sinkageCm - 8.0 * subDt);
+                }
+
+                // 10. Total Longitudinal Resistances on the Rig (Grade + Rolling + Sinkage Bulldozing + Wind + Turn Scrub)
+                // A. Gravity Grade Force: m * g * sin(theta)
+                const F_grade = env.totalMassKg * g * Math.sin(road.slopeRad);
+
+                // B. Base Rolling Resistance + Weather Water/Snow Wedge + Sinkage Bulldozing Drag
+                const weatherCrrAdd = env.weather === 'snowy' ? 0.045 * env.weatherStrength : env.weather === 'rainy' ? 0.012 * env.weatherStrength : 0;
+                // Sinkage creates an exponential bulldozing wall in front of the sunk tires!
+                const sinkageCrrAdd = Math.pow(truck.sinkageCm / 22.0, 1.85) * 0.14;
+                const totalCrr = surf.crr + weatherCrrAdd + sinkageCrrAdd;
+                const F_rolling = totalWeightN * totalCrr * (Math.abs(truck.vx) > 0.05 ? Math.sign(truck.vx) : 1);
+
+                // C. Multi-Axle Trailer Lateral Scrubbing Drag in Sharp Turns / U-Turns / Circle
+                const numAxles = env.rigType === 'single' ? 5 : 8;
+                const F_turnScrub = road.curvature * 1.45 * totalWeightN * 0.08 * (numAxles / 5) * (Math.abs(truck.vx) > 0.1 ? Math.sign(truck.vx) : 0);
+
+                // D. Aerodynamic & Gale Headwind Drag: 0.5 * rho * Cd * A * (v + v_wind)^2
+                const headwindSpeedMs = env.weather === 'windy' ? 26.0 * env.weatherStrength : (env.weather === 'rainy' || env.weather === 'snowy' ? 10.0 * env.weatherStrength : 2.0);
+                const relAirSpeed = truck.vx + headwindSpeedMs;
+                const cdArea = env.rigType === 'single' ? 7.8 : 9.6;
+                const F_aero = 0.5 * 1.225 * cdArea * relAirSpeed * Math.abs(relAirSpeed);
+
+                // Total resisting force opposing forward motion
+                const combinedBrakeForce = F_serviceBrake + F_emergencyBrake;
+                const F_brakeSigned = Math.abs(truck.vx) > 0.08
+                    ? combinedBrakeForce * Math.sign(truck.vx)
+                    : combinedBrakeForce * Math.sign(F_tractive - F_grade);
+
+                const netLongForce = F_tractive - F_grade - F_rolling - F_turnScrub - F_aero - F_brakeSigned;
+
+                // Static hold when stopped with brakes / emergency brake applied or rolling resistance > net force
+                if (Math.abs(truck.vx) < 0.08 && (controls.emergencyBrake || controls.gas < 0.05) && Math.abs(F_grade - F_tractive) < combinedBrakeForce + totalWeightN * totalCrr) {
+                    truck.vx = 0;
+                    truck.ax = 0;
+                } else {
+                    truck.ax = netLongForce / env.totalMassKg;
+                    truck.vx += truck.ax * subDt;
+                }
+
+                // Advance Position & Wheel Visual Angles
+                truck.x += truck.vx * subDt;
+                truck.steerWheelOmega = truck.vx / truck.wheelRadius;
+                truck.driveWheelAngle += truck.wheelOmega * subDt;
+                truck.freeWheelAngle += truck.steerWheelOmega * subDt;
+
+                // Store forces for telemetry display
+                truck.tractiveEffortN = F_tractive;
+                truck.gradeForceN = F_grade;
+                truck.dragAndScrubN = F_rolling + F_turnScrub + F_aero;
+            }
+
+            // 11. Automatic AMT Gear Shifting Logic (if in AUTO AMT mode)
+            truck.shiftCooldown = Math.max(0, truck.shiftCooldown - dt);
+            if (powertrain.shiftMode === 'auto' && truck.shiftCooldown <= 0 && currentGearObj.ratio > 0) {
+                const gears = transObj.gears;
+                // Only upshift if NOT spinning wheels wildly!
+                if (truck.rpm > 1780 && Math.abs(truck.slipRatio) < 0.24 && powertrain.gearIndex < gears.length - 1) {
+                    // Skip-shift on light load, single shift on heavy grade
+                    const stepUp = (truck.ax > 1.1 && powertrain.transType === '18spd' && powertrain.gearIndex < gears.length - 2) ? 2 : 1;
+                    shiftGear(stepUp);
+                    truck.shiftCooldown = 0.65;
+                } else if (truck.rpm < 1040 && powertrain.gearIndex > 1 && Math.abs(truck.vx) > 0.5) {
+                    shiftGear(-1);
+                    truck.shiftCooldown = 0.55;
+                }
+            }
+
+            // 12. Suspension Pitch & Bounce Dynamics
+            const targetPitch = -truck.ax * 0.18 + Math.sin(truck.x * 1.5) * (env.surface === 'pebble' || env.surface === 'mud' ? 0.12 : 0.02);
+            truck.pitchBounce += (targetPitch - truck.pitchBounce) * Math.min(1, dt * 8);
+
+            // 13. Emit Tire Spin Particles (Mud Roosters, Snow Plumes, Sand, Pebbles, Tire Smoke)
+            if (Math.abs(truck.slipRatio) > 0.18 && Math.abs(truck.wheelOmega) > 2.5) {
+                spawnWheelSpinParticles();
+            }
+
+            // 13B. Emit Dynamic Vertical Exhaust Stack Smoke Particles based on Engine Load % & RPM
+            spawnExhaustSmokeParticles(dt);
+
+            // 13C. Update Real-Time Procedural Web Audio Engine
+            soundEngine.updateContinuous(dt);
+
+            // 14. Check Fatal Immobilization / Bogged in Mud or Snow / Clutch Burnout / Runaway Rollback
+            checkBoggedOrFailureState(dt);
+        }
+
+        function checkBoggedOrFailureState(dt) {
+            // Condition A: Deeply bogged in Mud, Sand, or Snow (Sinkage >= 32cm and ground speed near zero while spinning)
+            if (truck.sinkageCm >= 31.0 && Math.abs(truck.vx) < 0.35 && controls.gas > 0.25) {
+                truck.boggedTimer += dt;
+                if (truck.boggedTimer > 1.8) {
+                    triggerFailureModal(
+                        `RIG BOGGED & BURIED IN ${SURFACES[env.surface].name.toUpperCase()}!`,
+                        `Excessive wheel spin (${Math.round(Math.abs(truck.slipRatio) * 100)}% slip) excavated ${truck.sinkageCm.toFixed(1)} cm ruts beneath the tandem drive axles. The differentials and frame rails have bottomed out, creating ${(truck.dragAndScrubN / 1000).toFixed(1)} kN of bulldozing drag against ${(truck.tractiveEffortN / 1000).toFixed(1)} kN of available traction.`
+                    );
+                }
+            }
+            // Condition B: Clutch / Transmission Thermal Failure (> 280°C)
+            else if (truck.clutchTempC >= 280) {
+                triggerFailureModal(
+                    `CLUTCH & TRANSMISSION OVERHEATED (${Math.round(truck.clutchTempC)}°C)!`,
+                    `Attempting to launch or hold ${Math.round(env.totalMassKg / 1000)} tonnes in too high a gear or while bogged caused catastrophic clutch friction glazing at ${Math.round(truck.clutchTempC)}°C.`
+                );
+            }
+            // Condition C: Uncontrolled Backward Rollback / Jackknife on Steep Grade (vx < -4.5 m/s in forward gear)
+            else if (truck.vx < -4.5 && TRANSMISSIONS[powertrain.transType].gears[powertrain.gearIndex].ratio > 0) {
+                triggerFailureModal(
+                    `RUNAWAY ROLLBACK & TRAILER JACKKNIFE ON ${env.baseGradePct.toFixed(1)}% GRADE!`,
+                    `Gravity grade resistance (${(truck.gradeForceN / 1000).toFixed(1)} kN) overpowered available wheel traction, dragging the articulated rig backward at ${Math.abs(truck.vx * 3.6).toFixed(1)} km/h.`
+                );
+            } else {
+                truck.boggedTimer = Math.max(0, truck.boggedTimer - dt * 0.5);
+            }
+        }
+
+        function triggerFailureModal(title, reason) {
+            truck.isBogged = true;
+            document.getElementById('stuck-title').textContent = title;
+            document.getElementById('stuck-reason').textContent = reason;
+            document.getElementById('stuck-stat-slip').textContent = Math.min(99, Math.round(Math.abs(truck.slipRatio) * 100)) + '%';
+            document.getElementById('stuck-stat-sink').textContent = truck.sinkageCm.toFixed(1) + ' cm';
+            document.getElementById('stuck-stat-temp').textContent = Math.round(truck.clutchTempC) + ' °C';
+            document.getElementById('stuck-modal').classList.remove('hidden');
+        }
+
+        /****************************************************************************************
+         * SIDE-PROFILE 2D/2.5D CANVAS RENDERING & PARTICLE SYSTEMS
+         ****************************************************************************************/
+        function resizeCanvases() {
+            const dpr = window.devicePixelRatio || 1;
+            [simCanvas, gaugeCanvas, chartCanvas].forEach(c => {
+                if (!c) return;
+                const rect = c.getBoundingClientRect();
+                c.width = Math.max(1, Math.floor(rect.width * dpr));
+                c.height = Math.max(1, Math.floor(rect.height * dpr));
+                const context = c.getContext('2d');
+                context.setTransform(dpr, 0, 0, dpr, 0, 0);
+            });
+        }
+
+        window.addEventListener('resize', resizeCanvases);
+
+        function spawnWheelSpinParticles() {
+            const surf = SURFACES[env.surface];
+            const isSnow = env.weather === 'snowy' && env.weatherStrength > 0.25;
+            const isRain = env.weather === 'rainy' && env.weatherStrength > 0.25;
+
+            const pColor = isSnow
+                ? 'rgba(241, 245, 249, 0.9)'
+                : (isRain && env.surface === 'asphalt')
+                    ? 'rgba(186, 230, 253, 0.65)'
+                    : surf.particleCol;
+
+            const driveOffsets = powertrain.allWheelDrive6x6 ? [-52, -98, 42] : [-52, -98];
+            const rimSpeed = truck.wheelOmega * truck.wheelRadius;
+            const count = Math.min(4, Math.ceil(Math.abs(truck.slipRatio) * 4));
+
+            driveOffsets.forEach(axX => {
+                for (let i = 0; i < count; i++) {
+                    tireParticles.push({
+                        relX: axX - 8 + (Math.random() - 0.5) * 14,
+                        relY: 4 - (truck.sinkageCm * 0.35),
+                        vx: -Math.sign(rimSpeed) * (35 + Math.random() * Math.min(140, Math.abs(rimSpeed) * 6)),
+                        vy: -(25 + Math.random() * 65),
+                        size: (env.surface === 'mud' || env.surface === 'pebble') ? 3 + Math.random() * 4 : 4 + Math.random() * 7,
+                        alpha: 0.9,
+                        color: pColor,
+                        gravity: (env.surface === 'asphalt' && !isRain && !isSnow) ? -18 : 160 // Smoke rises, mud/snow/sand arcs and falls!
+                    });
+                }
+            });
+        }
+
+        /**
+         * Spawns Dynamic Diesel Exhaust Plumes from the Dual Chrome Vertical Stacks behind the Tractor Cab
+         * Scales density, darkness (soot), upward velocity, and size directly with Engine Load %, RPM & Turbo Lag
+         */
+        function spawnExhaustSmokeParticles(dt) {
+            if (truck.isBogged) return;
+            const loadNorm = Math.max(0, Math.min(1, truck.engineLoadPct / 100));
+            const rpmNorm = (truck.rpm - 600) / 1600;
+            const pitchY = truck.pitchBounce * 4;
+
+            // Spawn rate increases with RPM & Engine Load
+            const spawnChance = 0.35 + loadNorm * 0.65 + rpmNorm * 0.35;
+            const numPuffs = loadNorm > 0.65 ? 2 : (Math.random() < spawnChance ? 1 : 0);
+
+            const headwindVx = env.weather === 'windy' ? -95 * env.weatherStrength : -18 * env.weatherStrength;
+
+            for (let i = 0; i < numPuffs; i++) {
+                // Color transitions from faint translucent grey at idle -> brown-grey at medium load -> thick pitch-black soot under full load!
+                const soot = truck.sootIntensity;
+                const shade = Math.round(185 - soot * 168); // 185 (light grey) down to 17 (coal black)
+                const alpha = 0.14 + soot * 0.68;
+
+                exhaustParticles.push({
+                    relX: -19 + (Math.random() - 0.5) * 3,
+                    relY: -19 - 91 + pitchY, // Exact tip of vertical chrome stack
+                    vx: -truck.vx * 14 + headwindVx + (Math.random() - 0.5) * 18,
+                    vy: -(48 + rpmNorm * 65 + loadNorm * 55) + (Math.random() - 0.5) * 12,
+                    size: 4.5 + loadNorm * 6.5 + Math.random() * 3,
+                    growRate: 14 + loadNorm * 22,
+                    alpha: alpha,
+                    shade: shade
+                });
+            }
+        }
+
+        function updateAndRenderExhaustParticles(dt) {
+            for (let i = exhaustParticles.length - 1; i >= 0; i--) {
+                const ep = exhaustParticles[i];
+                ep.relX += ep.vx * dt;
+                ep.relY += ep.vy * dt;
+                // Exhaust plume slows its vertical rise and drifts backward with wind/slipstream
+                ep.vy *= (1 - dt * 1.4);
+                ep.size += ep.growRate * dt;
+                ep.alpha -= dt * (0.42 - truck.sootIntensity * 0.14);
+
+                if (ep.alpha <= 0.01) {
+                    exhaustParticles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.fillStyle = `rgba(${ep.shade}, ${ep.shade}, ${ep.shade + 5}, ${Math.max(0, ep.alpha)})`;
+                ctx.beginPath();
+                ctx.arc(ep.relX, ep.relY, ep.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function renderSideProfileScene(dt) {
+            const w = simCanvas.width / window.devicePixelRatio;
+            const h = simCanvas.height / window.devicePixelRatio;
+            ctx.clearRect(0, 0, w, h);
+
+            const surf = SURFACES[env.surface];
+            const road = getRoadProfileAt(truck.x);
+
+            // 1. Dynamic Sky Backdrop based on Weather & Strength
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+            if (env.weather === 'sunny') {
+                skyGrad.addColorStop(0, '#0c2442');
+                skyGrad.addColorStop(0.65, '#1e3a5f');
+                skyGrad.addColorStop(1, '#0f172a');
+            } else if (env.weather === 'snowy') {
+                skyGrad.addColorStop(0, '#1e293b');
+                skyGrad.addColorStop(0.65, '#334155');
+                skyGrad.addColorStop(1, '#1e293b');
+            } else if (env.weather === 'fog' || env.weather === 'mist') {
+                skyGrad.addColorStop(0, '#1f2937');
+                skyGrad.addColorStop(0.65, '#374151');
+                skyGrad.addColorStop(1, '#111827');
+            } else {
+                skyGrad.addColorStop(0, '#090d16');
+                skyGrad.addColorStop(0.65, '#162032');
+                skyGrad.addColorStop(1, '#090d16');
+            }
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, w, h);
+
+            // Draw Sun if Sunny
+            if (env.weather === 'sunny') {
+                const sunAlpha = 1.0 - env.weatherStrength * 0.2;
+                const sunGrad = ctx.createRadialGradient(w * 0.82, h * 0.2, 5, w * 0.82, h * 0.2, 85);
+                sunGrad.addColorStop(0, `rgba(253, 224, 71, ${sunAlpha})`);
+                sunGrad.addColorStop(0.4, `rgba(251, 191, 36, ${sunAlpha * 0.35})`);
+                sunGrad.addColorStop(1, 'rgba(251, 191, 36, 0)');
+                ctx.fillStyle = sunGrad;
+                ctx.beginPath();
+                ctx.arc(w * 0.82, h * 0.2, 85, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 2. Parallax Distant Mountains & Trees (Scrolling with truck.x)
+            drawParallaxHorizon(w, h, road.slopeRad);
+
+            // 3. Camera Transform (Full Double-Trailer Rig View vs Zoomed Drive Axle View)
+            ctx.save();
+            const targetScale = env.cameraMode === 'drive' ? Math.min(w / 460, h / 270) : Math.min(w / 960, h / 420);
+            env.cameraZoom += (targetScale - env.cameraZoom) * Math.min(1, dt * 8);
+
+            // Position tractor forward on canvas so single or double trailers fit behind it
+            const pivotScreenX = env.cameraMode === 'drive' ? w * 0.56 : (env.rigType === 'single' ? w * 0.66 : w * 0.77);
+            const pivotScreenY = env.cameraMode === 'drive' ? h * 0.63 : h * 0.64;
+
+            ctx.translate(pivotScreenX, pivotScreenY);
+            ctx.scale(env.cameraZoom, env.cameraZoom);
+            // Rotate entire world slightly by the current road grade slope so uphill/downhill is visually authentic!
+            ctx.rotate(-road.slopeRad * 0.85);
+
+            // 4. Draw Ground Surface Cross-Section, Distance Markers, Curve Chevrons & Excavated Ruts
+            drawGroundAndSurfaceCrossSection(surf, road);
+
+            // 5. Draw Articulated Rig (Single 5-Axle Semi OR Double-Trailed 8-Axle B-Double Road Train)
+            drawArticulatedTruckRig(surf, road, dt);
+
+            // 5B. Update & Render Dynamic Vertical Stack Diesel Exhaust Plumes
+            updateAndRenderExhaustParticles(dt);
+
+            // 6. Update & Render Tire Spin Rooster Particles (Mud, Snow, Sand, Smoke)
+            updateAndRenderTireParticles(dt);
+
+            ctx.restore();
+
+            // 7. Render Screen-Space Weather Effects (Rain, Snowflakes, Wind Gust Streaks, Fog/Mist Haze)
+            renderWeatherOverlay(w, h, dt);
+        }
+
+        function drawParallaxHorizon(w, h, slopeRad) {
+            ctx.save();
+            const baseH = h * 0.65;
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            for (let x = 0; x <= w; x += 40) {
+                const worldM = x * 0.5 + truck.x * 2.5;
+                const mHeight = Math.sin(worldM * 0.008) * 35 + Math.cos(worldM * 0.02) * 18;
+                ctx.lineTo(x, baseH - 45 - mHeight - (x - w * 0.5) * Math.tan(slopeRad) * 0.35);
+            }
+            ctx.lineTo(w, h);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawGroundAndSurfaceCrossSection(surf, road) {
+            const groundY = 0; // Tire contact baseline in local coordinates
+            const sinkPx = truck.sinkageCm * 0.42;
+
+            // Deep Sub-soil / Earth layer
+            ctx.fillStyle = surf.subColor;
+            ctx.fillRect(-1200, groundY, 2400, 350);
+
+            // Top Surface Layer (Asphalt, Dirt, Pebble, Sand, Mud, or Ice)
+            ctx.fillStyle = surf.topColor;
+            ctx.fillRect(-1200, groundY - 2, 2400, 26);
+
+            // Weather Surface Overlays (Snow pack or Wet Rain Sheen)
+            if (env.weather === 'snowy' && env.weatherStrength > 0.05) {
+                const snowDepthPx = 4 + env.weatherStrength * 12;
+                ctx.fillStyle = `rgba(241, 245, 249, ${0.45 + env.weatherStrength * 0.5})`;
+                ctx.fillRect(-1200, groundY - snowDepthPx * 0.6, 2400, snowDepthPx);
+            } else if (env.weather === 'rainy' && env.weatherStrength > 0.05) {
+                ctx.fillStyle = `rgba(56, 189, 248, ${0.15 + env.weatherStrength * 0.25})`;
+                ctx.fillRect(-1200, groundY - 2, 2400, 6);
+            }
+
+            // Scrolling Surface Texture & Distance Marker Posts every 10 meters (1m = 36px)
+            const pxPerMeter = 36;
+            const scrollOffsetPx = (truck.x * pxPerMeter) % pxPerMeter;
+
+            // Surface pebbles / texture ticks scrolling past wheels
+            for (let gx = -950 - scrollOffsetPx; gx < 550; gx += 18) {
+                const hash = Math.abs(Math.sin((gx + Math.floor(truck.x) * pxPerMeter) * 0.13));
+                ctx.fillStyle = env.surface === 'ice' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.28)';
+                ctx.fillRect(gx, groundY + 4 + hash * 12, 6 + hash * 8, 3);
+            }
+
+            // 10m Roadside Distance Posts + Turn Chevron Signs (when in Sharp Turn / U-Turn / Circle)
+            const postSpacingPx = 180; // 5 meters per marker
+            const postOffset = (truck.x * pxPerMeter) % postSpacingPx;
+            for (let px = -900 - postOffset; px < 500; px += postSpacingPx) {
+                const meterNum = Math.round(truck.x + px / pxPerMeter);
+                // Post pole
+                ctx.fillStyle = '#334155';
+                ctx.fillRect(px, groundY - 46, 3, 46);
+
+                // Sign plate
+                if (road.curvature > 0.01) {
+                    // Yellow/Black Sharp Turn / U-Turn Warning Chevron!
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.fillRect(px - 14, groundY - 62, 30, 18);
+                    ctx.fillStyle = '#0f172a';
+                    ctx.font = 'bold 11px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(env.roadShape === 'uturn' ? '⟲ U-TURN' : '↪ TURN', px + 1, groundY - 50);
+                } else {
+                    ctx.fillStyle = '#0f172a';
+                    ctx.strokeStyle = '#475569';
+                    ctx.lineWidth = 1;
+                    ctx.fillRect(px - 15, groundY - 58, 32, 14);
+                    ctx.strokeRect(px - 15, groundY - 58, 32, 14);
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = 'bold 8px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${meterNum}m`, px + 1, groundY - 48);
+                }
+            }
+
+            // Excavated Rut & Bulldozing Mound under Tandem Drive Axles when Sinkage > 1.5 cm!
+            if (sinkPx > 0.8) {
+                const driveCenters = powertrain.allWheelDrive6x6 ? [-52, -98, 42] : [-52, -98];
+                driveCenters.forEach(cx => {
+                    // Dark excavated pit under tire
+                    ctx.fillStyle = '#090605';
+                    ctx.beginPath();
+                    ctx.arc(cx, groundY + 2, 22, 0, Math.PI, false);
+                    ctx.fill();
+
+                    // Piled-up mud/sand/snow bulldozing mound in front & behind tire
+                    ctx.fillStyle = env.weather === 'snowy' ? '#e2e8f0' : surf.topColor;
+                    ctx.beginPath();
+                    ctx.ellipse(cx + 21, groundY - sinkPx * 0.25, 11, Math.min(12, sinkPx * 0.65), 0, 0, Math.PI * 2);
+                    ctx.ellipse(cx - 21, groundY - sinkPx * 0.25, 11, Math.min(12, sinkPx * 0.65), 0, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+        }
+
+        /**
+         * Renders the Complete Articulated Tractor + Single or Double Trailers + Suspension + Rotating Wheels
+         */
+        function drawArticulatedTruckRig(surf, road, dt) {
+            const wheelR = 19; // 19px radius = 38px diameter heavy duty tire
+            const sinkPx = truck.sinkageCm * 0.42;
+            const pitchY = truck.pitchBounce * 4;
+
+            // Perspective visual compression when cornering in Sharp Turn / U-Turn / Circle
+            const turnVisualSkew = road.curvature * 140;
+
+            // =========================================================================
+            // 1. SECOND TRAILER (B-DOUBLE REAR TRAILER) — If Rig is 'double' or 'heavy'
+            // =========================================================================
+            if (env.rigType === 'double' || env.rigType === 'heavy') {
+                ctx.save();
+                // Slight articulation kink on slopes or sharp turns
+                ctx.translate(-355, 0);
+                ctx.rotate(road.curvature * 0.65);
+
+                // Rear Trailer Chassis Frame & fifth-wheel dolly bar
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(-205, -wheelR - 14, 215, 7);
+
+                // B-Double Rear Trailer Body (Container / Heavy Logger)
+                if (env.rigType === 'heavy') {
+                    // Heavy Haul Timber / Steel Pipe Bunks
+                    ctx.fillStyle = '#334155';
+                    ctx.fillRect(-200, -wheelR - 56, 195, 42);
+                    // Stacked Logs / Heavy Steel Pipes
+                    ctx.fillStyle = '#78350f';
+                    for (let ly = 0; ly < 3; ly++) {
+                        ctx.fillRect(-194, -wheelR - 26 - ly * 11, 184, 9);
+                    }
+                    // Stanchion posts
+                    ctx.fillStyle = '#f59e0b';
+                    [-185, -135, -80, -25].forEach(sx => ctx.fillRect(sx, -wheelR - 62, 5, 48));
+                } else {
+                    // Aerodynamic Logistics B-Double Box Trailer 2
+                    const tr2Grad = ctx.createLinearGradient(0, -wheelR - 74, 0, -wheelR - 14);
+                    tr2Grad.addColorStop(0, '#1e293b');
+                    tr2Grad.addColorStop(1, '#0f172a');
+                    ctx.fillStyle = tr2Grad;
+                    ctx.strokeStyle = '#475569';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.roundRect(-202, -wheelR - 74, 196, 60, 3);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Side Stripe & Telemetry Decal
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.fillRect(-202, -wheelR - 30, 196, 4);
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = 'bold 9px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('TRAILER 2 // B-DOUBLE REAR', -104, -wheelR - 45);
+                }
+
+                // Rear Trailer Tri-Axle / Tandem Axles (Non-driven, rotating at freeWheelAngle)
+                drawSuspensionAndWheel(-178, 0, wheelR, truck.freeWheelAngle, false, false, 'T2-3');
+                drawSuspensionAndWheel(-138, 0, wheelR, truck.freeWheelAngle, false, false, 'T2-2');
+                drawSuspensionAndWheel(-98,  0, wheelR, truck.freeWheelAngle, false, false, 'T2-1');
+
+                ctx.restore();
+            }
+
+            // =========================================================================
+            // 2. LEAD SEMI-TRAILER (Coupled to Tractor Fifth-Wheel at x = -74)
+            // =========================================================================
+            ctx.save();
+            ctx.translate(-74, 0);
+            ctx.rotate(road.curvature * 0.32);
+
+            const tr1Len = env.rigType === 'single' ? 310 : 275;
+            // Lead Trailer I-Beam Chassis & B-Double Rear Fifth-Wheel Tail
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(-tr1Len, -wheelR - 15, tr1Len + 12, 8);
+
+            // Landing Gear Legs
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(-55, -wheelR - 15, 5, 19);
+            ctx.fillRect(-59, 3, 13, 3);
+
+            if (env.rigType === 'heavy') {
+                // Heavy Haul Lead Timber/Steel Bunk
+                ctx.fillStyle = '#334155';
+                ctx.fillRect(-tr1Len + 25, -wheelR - 58, tr1Len - 15, 43);
+                ctx.fillStyle = '#92400e';
+                for (let ly = 0; ly < 3; ly++) {
+                    ctx.fillRect(-tr1Len + 30, -wheelR - 27 - ly * 11, tr1Len - 26, 9);
+                }
+                ctx.fillStyle = '#f59e0b';
+                [-230, -170, -110, -45].forEach(sx => ctx.fillRect(sx, -wheelR - 64, 5, 50));
+            } else {
+                // Standard 53ft or Lead B-Double Dry Van / Reefer Trailer
+                const boxW = env.rigType === 'single' ? 298 : 242;
+                const boxStartX = env.rigType === 'single' ? -290 : -235;
+                const tr1Grad = ctx.createLinearGradient(0, -wheelR - 78, 0, -wheelR - 15);
+                tr1Grad.addColorStop(0, '#263346');
+                tr1Grad.addColorStop(1, '#0f172a');
+                ctx.fillStyle = tr1Grad;
+                ctx.strokeStyle = '#64748b';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.roundRect(boxStartX, -wheelR - 78, boxW, 63, 4);
+                ctx.fill();
+                ctx.stroke();
+
+                // Vertical Reefer / Ribbed Side Panels
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
+                ctx.lineWidth = 1;
+                for (let rx = boxStartX + 18; rx < boxStartX + boxW - 10; rx += 18) {
+                    ctx.beginPath();
+                    ctx.moveTo(rx, -wheelR - 76);
+                    ctx.lineTo(rx, -wheelR - 16);
+                    ctx.stroke();
+                }
+
+                // Safety Stripe & Mass Readout on Trailer Flank
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillRect(boxStartX, -wheelR - 30, boxW, 4);
+                ctx.fillStyle = '#f8fafc';
+                ctx.font = 'bold 10px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(
+                    `RIGLAB HEAVY LOGISTICS // ${(env.totalMassKg / 1000).toFixed(1)}t GVW`,
+                    boxStartX + boxW * 0.5,
+                    -wheelR - 48
+                );
+            }
+
+            // Lead Trailer Tandem Axles (T1-1 and T1-2)
+            const tAx1 = env.rigType === 'single' ? -258 : -242;
+            const tAx2 = env.rigType === 'single' ? -216 : -202;
+            drawSuspensionAndWheel(tAx2, 0, wheelR, truck.freeWheelAngle, false, false, 'T1-2');
+            drawSuspensionAndWheel(tAx1, 0, wheelR, truck.freeWheelAngle, false, false, 'T1-1');
+
+            ctx.restore();
+
+            // =========================================================================
+            // 3. 6x4 / 6x6 HEAVY SEMI-TRACTOR PRIME MOVER
+            // =========================================================================
+            ctx.save();
+            // Tractor chassis frame rails (-122 to +66)
+            ctx.fillStyle = '#0f172a';
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 1.5;
+            ctx.fillRect(-122, -wheelR - 11 + pitchY * 0.5, 190, 9);
+            ctx.strokeRect(-122, -wheelR - 11 + pitchY * 0.5, 190, 9);
+
+            // Fifth-Wheel Hitch Coupling Plate above Tandem Drives
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(-84, -wheelR - 16 + pitchY * 0.5, 22, 5);
+
+            // Dual Chrome Vertical Exhaust Stacks + Heat Shield Mesh
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(-24, -wheelR - 84 + pitchY, 4, 72);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(-19, -wheelR - 88 + pitchY, 5, 76);
+            // Curved Exhaust Stack Rain Cap / Turnout Tip
+            ctx.fillRect(-22, -wheelR - 93 + pitchY, 6, 6);
+
+            // Glowing Red/Orange Exhaust Stack Tip under Heavy Load (>85%)
+            if (truck.engineLoadPct > 82) {
+                ctx.fillStyle = `rgba(249, 115, 22, ${(truck.engineLoadPct - 80) / 35})`;
+                ctx.beginPath();
+                ctx.arc(-18, -wheelR - 92 + pitchY, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Aluminum Fuel Tank between Steer and Drive Axles
+            const tankGrad = ctx.createLinearGradient(0, -wheelR - 12, 0, -wheelR + 4);
+            tankGrad.addColorStop(0, '#94a3b8');
+            tankGrad.addColorStop(0.5, '#f8fafc');
+            tankGrad.addColorStop(1, '#475569');
+            ctx.fillStyle = tankGrad;
+            ctx.beginPath();
+            ctx.roundRect(-24, -wheelR - 10 + pitchY * 0.6, 44, 15, 4);
+            ctx.fill();
+
+            // Tractor Sleeper Cab & Aerodynamic Hood
+            const cabGrad = ctx.createLinearGradient(-18, -wheelR - 76, 62, -wheelR - 10);
+            cabGrad.addColorStop(0, '#0284c7');
+            cabGrad.addColorStop(1, '#0369a1');
+            ctx.fillStyle = cabGrad;
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1.5;
+
+            ctx.beginPath();
+            ctx.moveTo(-15, -wheelR - 11 + pitchY);
+            ctx.lineTo(-15, -wheelR - 74 + pitchY); // Rear sleeper wall
+            ctx.lineTo(12, -wheelR - 78 + pitchY);  // Roof fairing peak
+            ctx.lineTo(28, -wheelR - 52 + pitchY);  // Windshield top
+            ctx.lineTo(35, -wheelR - 35 + pitchY);  // Hood cowl
+            ctx.lineTo(64, -wheelR - 31 + pitchY);  // Front grille top
+            ctx.lineTo(66, -wheelR - 11 + pitchY);  // Front bumper bottom
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Cab Window & Chrome Grille
+            ctx.fillStyle = '#090d16';
+            ctx.beginPath();
+            ctx.moveTo(14, -wheelR - 50 + pitchY);
+            ctx.lineTo(27, -wheelR - 50 + pitchY);
+            ctx.lineTo(33, -wheelR - 35 + pitchY);
+            ctx.lineTo(14, -wheelR - 35 + pitchY);
+            ctx.closePath();
+            ctx.fill();
+
+            // Front Grille & Headlight Beam (brighter in Fog/Mist/Rain/Snow!)
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(62, -wheelR - 30 + pitchY, 4, 17);
+
+            if (env.weather !== 'sunny') {
+                const beamGrad = ctx.createLinearGradient(66, -wheelR - 20, 260, -wheelR + 10);
+                beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.42)');
+                beamGrad.addColorStop(1, 'rgba(254, 240, 138, 0)');
+                ctx.fillStyle = beamGrad;
+                ctx.beginPath();
+                ctx.moveTo(66, -wheelR - 22 + pitchY);
+                ctx.lineTo(270, -wheelR - 55 + pitchY);
+                ctx.lineTo(270, 18);
+                ctx.lineTo(66, -wheelR - 14 + pitchY);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // =========================================================================
+            // 4. TRACTOR AXLES: TANDEM REAR DRIVES (D2, D1) + FRONT STEER (S1)
+            // =========================================================================
+            const isSlippingHard = Math.abs(truck.slipRatio) > 0.22;
+
+            // Rear Tandem Drive Axles (-98 and -52) — SINK into mud/sand/snow by sinkPx!
+            drawSuspensionAndWheel(-98, sinkPx, wheelR, truck.driveWheelAngle, true, isSlippingHard, 'D2');
+            drawSuspensionAndWheel(-52, sinkPx, wheelR, truck.driveWheelAngle, true, isSlippingHard, 'D1');
+
+            // Front Steer Axle (+42) — Driven if 6x6 All-Wheel Drive is enabled, otherwise free-rolling
+            const steerAngle = powertrain.allWheelDrive6x6 ? truck.driveWheelAngle : truck.freeWheelAngle;
+            const steerSink = powertrain.allWheelDrive6x6 ? sinkPx * 0.75 : sinkPx * 0.25;
+            drawSuspensionAndWheel(42, steerSink, wheelR, steerAngle, powertrain.allWheelDrive6x6, powertrain.allWheelDrive6x6 && isSlippingHard, 'S1');
+
+            ctx.restore();
+        }
+
+        /**
+         * Draws an Individual Heavy-Duty Axle, Spring-Damper Strut, Tire Tread, Lug Nuts,
+         * and High-Contrast Rotating Spokes + Valve Marker so real Wheel Spin is crystal clear!
+         */
+        function drawSuspensionAndWheel(xPos, sinkOffsetPx, r, angleRad, isDriven, isSpinningAlert, label) {
+            const wheelCenterY = -r + sinkOffsetPx;
+
+            // 1. Suspension Spring & Damper Strut connecting chassis to axle hub
+            ctx.strokeStyle = isDriven ? '#f59e0b' : '#64748b';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(xPos, -r - 13);
+            ctx.lineTo(xPos, wheelCenterY);
+            ctx.stroke();
+
+            ctx.save();
+            ctx.translate(xPos, wheelCenterY);
+
+            // 2. Red/Amber Halo if Driven Wheel is actively breaking traction (Wheel Spin!)
+            if (isSpinningAlert) {
+                ctx.beginPath();
+                ctx.arc(0, 0, r + 5, 0, Math.PI * 2);
+                ctx.strokeStyle = Math.abs(truck.slipRatio) > 0.45 ? 'rgba(244, 63, 94, 0.85)' : 'rgba(245, 158, 11, 0.8)';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+            }
+
+            // Rotate Wheel Assembly by true integrated angular position (angleRad)
+            ctx.rotate(angleRad);
+
+            // 3. Heavy Off-Road / Highway Tire Carcass
+            ctx.beginPath();
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
+            ctx.fillStyle = '#111827';
+            ctx.fill();
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = '#030712';
+            ctx.stroke();
+
+            // 4. Outer Tire Tread Blocks (12 distinct cleats around circumference so rotation speed is obvious!)
+            const numTreads = 12;
+            for (let i = 0; i < numTreads; i++) {
+                const ta = (i / numTreads) * Math.PI * 2;
+                ctx.save();
+                ctx.rotate(ta);
+                ctx.fillStyle = i % 2 === 0 ? '#374151' : '#1f2937';
+                ctx.fillRect(r - 3.5, -2.5, 3.8, 5);
+                ctx.restore();
+            }
+
+            // 5. Steel / Alloy Rim Dish
+            const rimR = r * 0.58;
+            ctx.beginPath();
+            ctx.arc(0, 0, rimR, 0, Math.PI * 2);
+            ctx.fillStyle = isDriven ? '#1e293b' : '#334155';
+            ctx.fill();
+            ctx.lineWidth = 1.8;
+            ctx.strokeStyle = isDriven ? '#cbd5e1' : '#94a3b8';
+            ctx.stroke();
+
+            // 6. High-Contrast Wheel Spokes & 2 Bright Reference Stripes (Yellow/Cyan) to make RPM & Spin unmistakable!
+            const spokes = 6;
+            for (let i = 0; i < spokes; i++) {
+                const sa = (i / spokes) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(Math.cos(sa) * rimR, Math.sin(sa) * rimR);
+                if (i === 0) {
+                    // Primary High-Visibility Reference Spoke + Sidewall Paint Mark
+                    ctx.strokeStyle = isDriven ? '#facc15' : '#38bdf8';
+                    ctx.lineWidth = 3.2;
+                } else if (i === 3) {
+                    ctx.strokeStyle = '#f8fafc';
+                    ctx.lineWidth = 2.4;
+                } else {
+                    ctx.strokeStyle = '#64748b';
+                    ctx.lineWidth = 1.6;
+                }
+                ctx.stroke();
+            }
+
+            // Sidewall Yellow Reference Paint Dot (used on real dyno/test trucks to see wheel slip!)
+            ctx.fillStyle = isDriven ? '#facc15' : '#38bdf8';
+            ctx.beginPath();
+            ctx.arc(r * 0.78, 0, 2.6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Planetary Axle Hub Cap
+            ctx.beginPath();
+            ctx.arc(0, 0, 4.2, 0, Math.PI * 2);
+            ctx.fillStyle = isDriven ? '#f59e0b' : '#0f172a';
+            ctx.fill();
+
+            ctx.restore();
+
+            // Axle ID Tag above wheel in Zoomed Drive Axle View
+            if (env.cameraMode === 'drive') {
+                ctx.fillStyle = isDriven ? '#fcd34d' : '#94a3b8';
+                ctx.font = 'bold 8px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(label, xPos, wheelCenterY + r + 11);
+            }
+        }
+
+        function updateAndRenderTireParticles(dt) {
+            for (let i = tireParticles.length - 1; i >= 0; i--) {
+                const p = tireParticles[i];
+                p.relX += p.vx * dt;
+                p.relY += p.vy * dt;
+                p.vy += p.gravity * dt;
+                p.alpha -= dt * 1.15;
+
+                if (p.alpha <= 0 || p.relY > 15) {
+                    tireParticles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.relX, p.relY, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function renderWeatherOverlay(w, h, dt) {
+            const s = env.weatherStrength;
+            if (s <= 0.02 || env.weather === 'sunny') return;
+
+            ctx.save();
+            // 1. Volumetric Fog / Mist Overlays
+            if (env.weather === 'fog' || env.weather === 'mist') {
+                const fogOpacity = (env.weather === 'fog' ? 0.68 : 0.35) * s;
+                const fogGrad = ctx.createLinearGradient(0, 0, 0, h);
+                fogGrad.addColorStop(0, `rgba(148, 163, 184, ${fogOpacity * 0.85})`);
+                fogGrad.addColorStop(0.6, `rgba(203, 213, 225, ${fogOpacity})`);
+                fogGrad.addColorStop(1, `rgba(71, 85, 105, ${fogOpacity * 0.5})`);
+                ctx.fillStyle = fogGrad;
+                ctx.fillRect(0, 0, w, h);
+            }
+
+            // 2. Active Precipitation & Wind Streaks (Rain, Snow, Windy Gale)
+            const activeCount = Math.floor(weatherParticles.length * s);
+            for (let i = 0; i < activeCount; i++) {
+                const wp = weatherParticles[i];
+
+                if (env.weather === 'rainy') {
+                    wp.x += (-180 - truck.vx * 12) * dt;
+                    wp.y += (520 + s * 220) * dt;
+                    ctx.strokeStyle = `rgba(125, 211, 252, ${wp.alpha * 0.75})`;
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(wp.x, wp.y);
+                    ctx.lineTo(wp.x + 7, wp.y - 18);
+                    ctx.stroke();
+                } else if (env.weather === 'snowy') {
+                    wp.x += (-95 - s * 80 - truck.vx * 10 + Math.sin(performance.now() * 0.003 + i) * 25) * dt;
+                    wp.y += (110 + s * 90) * dt;
+                    ctx.fillStyle = `rgba(248, 250, 252, ${wp.alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(wp.x, wp.y, wp.size * 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (env.weather === 'windy') {
+                    wp.x += (-550 - s * 450) * dt;
+                    wp.y += Math.sin(i) * 12 * dt;
+                    ctx.strokeStyle = `rgba(226, 232, 240, ${wp.alpha * 0.35})`;
+                    ctx.lineWidth = 1.2;
+                    ctx.beginPath();
+                    ctx.moveTo(wp.x, wp.y);
+                    ctx.lineTo(wp.x + 48, wp.y);
+                    ctx.stroke();
+                }
+
+                if (wp.x < -50) wp.x = w + 40;
+                if (wp.y > h + 20) {
+                    wp.y = -20;
+                    wp.x = Math.random() * (w + 150);
+                }
+            }
+            ctx.restore();
+        }
+
+        /****************************************************************************************
+         * RIGHT TELEMETRY PANEL: ENGINE & TRANSMISSION GAUGES, AXLE MONITOR & STRIP CHART
+         ****************************************************************************************/
+        function renderGaugesAndTelemetry() {
+            // 1. Speed & Slip Readouts
+            const groundKmh = truck.vx * 3.6;
+            const wheelKmh = (truck.wheelOmega * truck.wheelRadius) * 3.6;
+            const slipPct = Math.min(99, Math.round(Math.abs(truck.slipRatio) * 100));
+
+            document.getElementById('hud-ground-speed').textContent = groundKmh.toFixed(1);
+            document.getElementById('hud-wheel-speed').textContent = wheelKmh.toFixed(1);
+            document.getElementById('hud-slip-pct').textContent = slipPct + '%';
+
+            const slipBadge = document.getElementById('hud-slip-badge');
+            const slipEl = document.getElementById('hud-slip-pct');
+            if (slipPct > 35) {
+                slipBadge.textContent = 'SPINNING!';
+                slipBadge.className = 'text-[8px] mono px-1 rounded bg-rose-500/25 text-rose-300 font-bold animate-pulse';
+                slipEl.className = 'text-2xl font-extrabold mono text-rose-400';
+            } else if (slipPct > 14) {
+                slipBadge.textContent = 'PEAK SLIP';
+                slipBadge.className = 'text-[8px] mono px-1 rounded bg-amber-500/25 text-amber-300 font-bold';
+                slipEl.className = 'text-2xl font-extrabold mono text-amber-300';
+            } else {
+                slipBadge.textContent = 'GRIP OK';
+                slipBadge.className = 'text-[8px] mono px-1 rounded bg-emerald-500/20 text-emerald-300';
+                slipEl.className = 'text-2xl font-extrabold mono text-emerald-400';
+            }
+
+            // 2. Top Force Balance Pills
+            document.getElementById('hud-tractive-force').textContent = (truck.tractiveEffortN / 1000).toFixed(1) + ' kN';
+            document.getElementById('hud-grade-force').textContent = (truck.gradeForceN / 1000).toFixed(1) + ' kN';
+            document.getElementById('hud-drag-force').textContent = (truck.dragAndScrubN / 1000).toFixed(1) + ' kN';
+            document.getElementById('hud-sinkage').textContent = truck.sinkageCm.toFixed(1) + ' cm';
+
+            // Exhaust Soot / Load State Pill
+            const exhEl = document.getElementById('hud-exhaust-state');
+            if (exhEl) {
+                if (controls.retarderStage > 0 && controls.gas < 0.05 && truck.rpm > 800) {
+                    exhEl.textContent = `JAKE STG ${controls.retarderStage}`;
+                    exhEl.className = 'text-sm font-extrabold mono text-amber-300';
+                } else if (truck.engineLoadPct > 80) {
+                    exhEl.textContent = 'HEAVY SOOT';
+                    exhEl.className = 'text-sm font-extrabold mono text-rose-400';
+                } else if (truck.engineLoadPct > 35) {
+                    exhEl.textContent = 'MED DIESEL';
+                    exhEl.className = 'text-sm font-extrabold mono text-amber-300';
+                } else {
+                    exhEl.textContent = 'CLEAN IDLE';
+                    exhEl.className = 'text-sm font-extrabold mono text-emerald-400';
+                }
+            }
+
+            // Live Advisory Banner
+            const alertEl = document.getElementById('live-physics-alert');
+            const ledEl = document.getElementById('status-led');
+            if (controls.emergencyBrake) {
+                alertEl.textContent = `🛑 EMERGENCY SPRING BRAKE LOCKED! PRESS [B] TO RELEASE VALVE`;
+                alertEl.className = 'text-xs font-extrabold mono text-rose-400';
+                ledEl.className = 'w-3 h-3 rounded-full bg-rose-500 animate-ping shrink-0';
+            } else if (truck.brakeDrumTempC > 260) {
+                alertEl.textContent = `🔥 BRAKE DRUMS FADING (${Math.round(truck.brakeDrumTempC)}°C)! ENGAGE RETARDER [V]!`;
+                alertEl.className = 'text-xs font-extrabold mono text-rose-400';
+                ledEl.className = 'w-3 h-3 rounded-full bg-rose-500 animate-ping shrink-0';
+            } else if (truck.sinkageCm > 18) {
+                alertEl.textContent = `⚠️ AXLES SINKING (${truck.sinkageCm.toFixed(1)}cm)! EASE THROTTLE & LOCK DIFF [L]!`;
+                alertEl.className = 'text-xs font-extrabold mono text-rose-400';
+                ledEl.className = 'w-3 h-3 rounded-full bg-rose-500 animate-ping shrink-0';
+            } else if (slipPct > 35) {
+                alertEl.textContent = `⚠️ EXCESSIVE WHEEL SPIN (${slipPct}%) — UPSHIFT [E] OR FEATHER GAS!`;
+                alertEl.className = 'text-xs font-extrabold mono text-amber-300';
+                ledEl.className = 'w-3 h-3 rounded-full bg-amber-400 animate-ping shrink-0';
+            } else if (truck.clutchTempC > 180) {
+                alertEl.textContent = `🔥 CLUTCH OVERHEATING (${Math.round(truck.clutchTempC)}°C)! DOWNSHIFT TO CRAWLER [Q]!`;
+                alertEl.className = 'text-xs font-extrabold mono text-rose-400';
+                ledEl.className = 'w-3 h-3 rounded-full bg-rose-500 animate-ping shrink-0';
+            } else {
+                const road = getRoadProfileAt(truck.x);
+                alertEl.textContent = `GRADE: ${road.gradePct.toFixed(1)}% | LAT G: ${truck.latG.toFixed(2)}g | TRACTION OPTIMAL`;
+                alertEl.className = 'text-xs font-extrabold mono text-emerald-300';
+                ledEl.className = 'w-3 h-3 rounded-full bg-emerald-400 shrink-0';
+            }
+
+            // 3. Engine & Transmission Digital Bars
+            const engTorque = Math.round(truck.engineTorqueNm);
+            document.getElementById('bar-lbl-engload').textContent = `${Math.round(truck.engineLoadPct)}% (${engTorque} Nm)`;
+            document.getElementById('bar-fill-engload').style.width = `${Math.min(100, Math.max(0, truck.engineLoadPct))}%`;
+            document.getElementById('hud-boost').textContent = truck.turboBoostPsi.toFixed(1) + ' PSI';
+            document.getElementById('hud-rpm-num').textContent = Math.round(truck.rpm);
+
+            const transKnm = (truck.transOutputTorqueNm / 1000).toFixed(1);
+            const transPct = Math.min(100, (Math.abs(truck.transOutputTorqueNm) / 38000) * 100);
+            document.getElementById('bar-lbl-transtorque').textContent = `${transKnm} kNm`;
+            document.getElementById('bar-fill-transtorque').style.width = `${transPct}%`;
+
+            const curGearRatio = TRANSMISSIONS[powertrain.transType].gears[powertrain.gearIndex].ratio;
+            document.getElementById('hud-ratio-num').textContent = `${curGearRatio.toFixed(2)}:1`;
+
+            const cTempEl = document.getElementById('hud-clutch-temp');
+            cTempEl.textContent = `${Math.round(truck.clutchTempC)}°C`;
+            cTempEl.className = truck.clutchTempC > 175 ? 'text-rose-400 font-extrabold animate-pulse' : 'text-emerald-400 font-bold';
+
+            const bTempEl = document.getElementById('hud-brake-temp');
+            if (bTempEl) {
+                bTempEl.textContent = `${Math.round(truck.brakeDrumTempC)}°C`;
+                bTempEl.className = truck.brakeDrumTempC > 250
+                    ? 'text-rose-400 font-extrabold animate-pulse'
+                    : truck.brakeDrumTempC > 150 ? 'text-amber-300 font-bold' : 'text-emerald-400 font-bold';
+            }
+
+            // 4. Render Dual Circular Gauges on gaugeCanvas
+            drawCircularGauges(slipPct, transPct);
+
+            // 5. Update Per-Axle Load & Slip Breakdown
+            updateAxleBreakdownList(slipPct, groundKmh, wheelKmh);
+
+            // 6. Update Live Telemetry Strip Chart
+            updateAndRenderStripChart(groundKmh, wheelKmh, transPct);
+        }
+
+        function drawCircularGauges(slipPct, transPct) {
+            const w = gaugeCanvas.width / window.devicePixelRatio;
+            const h = gaugeCanvas.height / window.devicePixelRatio;
+            gCtx.clearRect(0, 0, w, h);
+
+            const r = Math.min(w * 0.22, h * 0.42);
+            const leftCx = w * 0.27;
+            const rightCx = w * 0.73;
+            const cy = h * 0.54;
+
+            // LEFT GAUGE: ENGINE RPM (0 - 2400 RPM) & TORQUE LOAD ARC
+            drawSingleDial(
+                leftCx, cy, r,
+                (truck.rpm - 500) / 1900,
+                truck.engineLoadPct / 100,
+                `${Math.round(truck.rpm)}`,
+                'ENGINE RPM',
+                `${Math.round(truck.engineTorqueNm)} Nm`,
+                '#10b981', '#f59e0b'
+            );
+
+            // RIGHT GAUGE: TRANSMISSION OUTPUT TORQUE (kNm) & DRIVETRAIN STRESS
+            drawSingleDial(
+                rightCx, cy, r,
+                transPct / 100,
+                slipPct / 100,
+                `${(truck.transOutputTorqueNm / 1000).toFixed(1)}`,
+                'TRANS kNm',
+                `WHEEL ${(truck.transOutputTorqueNm * powertrain.finalDrive / 1000).toFixed(0)} kNm`,
+                '#38bdf8', '#f43f5e'
+            );
+        }
+
+        function drawSingleDial(cx, cy, r, primaryNorm, outerNorm, centerBigText, subTitle, bottomText, primaryCol, outerCol) {
+            const startAngle = Math.PI * 0.78;
+            const endAngle = Math.PI * 2.22;
+            const span = endAngle - startAngle;
+
+            // Background Track
+            gCtx.beginPath();
+            gCtx.arc(cx, cy, r, startAngle, endAngle);
+            gCtx.strokeStyle = '#1e293b';
+            gCtx.lineWidth = 8;
+            gCtx.lineCap = 'round';
+            gCtx.stroke();
+
+            // Primary Value Arc
+            const clampedP = Math.max(0, Math.min(1, primaryNorm));
+            gCtx.beginPath();
+            gCtx.arc(cx, cy, r, startAngle, startAngle + span * clampedP);
+            gCtx.strokeStyle = primaryCol;
+            gCtx.lineWidth = 8;
+            gCtx.stroke();
+
+            // Outer Halo Ring (Engine Load % or Wheel Slip %)
+            const clampedO = Math.max(0, Math.min(1, outerNorm));
+            gCtx.beginPath();
+            gCtx.arc(cx, cy, r + 7, startAngle, startAngle + span * clampedO);
+            gCtx.strokeStyle = outerCol;
+            gCtx.lineWidth = 3;
+            gCtx.stroke();
+
+            // Needle
+            const needleAngle = startAngle + span * clampedP;
+            gCtx.beginPath();
+            gCtx.moveTo(cx, cy);
+            gCtx.lineTo(cx + Math.cos(needleAngle) * (r - 6), cy + Math.sin(needleAngle) * (r - 6));
+            gCtx.strokeStyle = '#f8fafc';
+            gCtx.lineWidth = 2;
+            gCtx.stroke();
+
+            // Center Readouts
+            gCtx.fillStyle = '#ffffff';
+            gCtx.font = 'extrabold 15px "JetBrains Mono", monospace';
+            gCtx.textAlign = 'center';
+            gCtx.fillText(centerBigText, cx, cy + 16);
+
+            gCtx.fillStyle = '#94a3b8';
+            gCtx.font = 'bold 8px "JetBrains Mono", monospace';
+            gCtx.fillText(subTitle, cx, cy - 12);
+
+            gCtx.fillStyle = outerCol;
+            gCtx.font = 'bold 9px "JetBrains Mono", monospace';
+            gCtx.fillText(bottomText, cx, cy + r + 14);
+        }
+
+        function updateAxleBreakdownList(slipPct, groundKmh, wheelKmh) {
+            document.getElementById('hud-turn-scrub-pill').textContent = `Lat G: ${truck.latG.toFixed(2)}g`;
+
+            const totalTonnes = env.totalMassKg / 1000;
+            const listEl = document.getElementById('axle-telemetry-list');
+
+            const steerSlip = powertrain.allWheelDrive6x6 ? slipPct : 0;
+            const steerSpd = powertrain.allWheelDrive6x6 ? wheelKmh : groundKmh;
+
+            const rows = [
+                {
+                    name: `Steer Axle S1 (${powertrain.allWheelDrive6x6 ? '6x6 DRIVEN' : 'FREE'})`,
+                    loadT: (totalTonnes * 0.11).toFixed(1) + 't',
+                    spd: steerSpd.toFixed(1) + ' km/h',
+                    slip: steerSlip + '%',
+                    col: steerSlip > 25 ? 'text-rose-400' : 'text-emerald-400'
+                },
+                {
+                    name: `Tandem Drive Axles (D1 & D2)`,
+                    loadT: (totalTonnes * (env.rigType === 'single' ? 0.44 : 0.29)).toFixed(1) + 't',
+                    spd: wheelKmh.toFixed(1) + ' km/h',
+                    slip: slipPct + '%',
+                    col: slipPct > 28 ? 'text-rose-400 font-extrabold' : slipPct > 12 ? 'text-amber-300' : 'text-emerald-400'
+                },
+                {
+                    name: env.rigType === 'single' ? 'Trailer Tandem (T1-1, T1-2)' : 'B-Double Trailers (5 Trailer Axles)',
+                    loadT: (totalTonnes * (env.rigType === 'single' ? 0.45 : 0.60)).toFixed(1) + 't',
+                    spd: groundKmh.toFixed(1) + ' km/h',
+                    slip: (truck.latG > 0.15 ? 'SCRUB' : '0% Roll'),
+                    col: truck.latG > 0.15 ? 'text-amber-300' : 'text-slate-300'
+                }
+            ];
+
+            listEl.innerHTML = rows.map(r => `
+                <div class="flex items-center justify-between bg-slate-950/90 border border-slate-800/80 rounded px-2 py-1">
+                    <span class="text-slate-300 font-semibold truncate max-w-[165px]">${r.name}</span>
+                    <span class="text-slate-400">Fz: <strong class="text-white">${r.loadT}</strong></span>
+                    <span class="text-amber-300">${r.spd}</span>
+                    <span class="${r.col} w-14 text-right">${r.slip}</span>
+                </div>
+            `).join('');
+        }
+
+        function updateAndRenderStripChart(groundKmh, wheelKmh, transPct) {
+            telemetryHistory.push({
+                gSpd: Math.abs(groundKmh),
+                wSpd: Math.abs(wheelKmh),
+                trq: transPct
+            });
+            if (telemetryHistory.length > 140) telemetryHistory.shift();
+
+            const w = chartCanvas.width / window.devicePixelRatio;
+            const h = chartCanvas.height / window.devicePixelRatio;
+            cCtx.clearRect(0, 0, w, h);
+
+            if (telemetryHistory.length < 2) return;
+
+            function plotSeries(key, maxVal, color, lineWidth) {
+                cCtx.beginPath();
+                for (let i = 0; i < telemetryHistory.length; i++) {
+                    const x = (i / 140) * w;
+                    const norm = Math.min(1, telemetryHistory[i][key] / maxVal);
+                    const y = h - 5 - norm * (h - 10);
+                    if (i === 0) cCtx.moveTo(x, y);
+                    else cCtx.lineTo(x, y);
+                }
+                cCtx.strokeStyle = color;
+                cCtx.lineWidth = lineWidth;
+                cCtx.stroke();
+            }
+
+            // Plot Transmission Torque %, Wheel Rim Speed, and True Ground Speed
+            plotSeries('trq', 100, 'rgba(56, 189, 248, 0.55)', 1.5);
+            plotSeries('wSpd', 90, '#f59e0b', 2.0);
+            plotSeries('gSpd', 90, '#ffffff', 2.0);
+        }
+
+        // Main Animation Loop
+        let lastFrameTime = performance.now();
+        function mainLoop(now) {
+            const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+            lastFrameTime = now;
+
+            stepPhysics(dt);
+            renderSideProfileScene(dt);
+            renderGaugesAndTelemetry();
+
+            requestAnimationFrame(mainLoop);
+        }
+
+        window.onload = function () {
+            resizeCanvases();
+            updateEffectiveGripBadge();
+            resetSession();
+            requestAnimationFrame(mainLoop);
+        };
+    </script>
+</body>
+</html>
