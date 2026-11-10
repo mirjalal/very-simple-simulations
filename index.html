@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en" class="dark scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Very Simple Simulations // In-Browser Physics & Engineering Labs</title>
+  <meta name="description" content="A curated collection of deep, deterministic, zero-dependency in-browser physics and vehicle dynamics laboratories." />
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            cyber: {
+              950: '#06080e',
+              900: '#0c101b',
+              850: '#111726',
+              800: '#171f33',
+              700: '#232f4c',
+              border: 'rgba(255, 255, 255, 0.08)',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body {
+      background-color: #06080e;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+    }
+    .grid-bg {
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 60%),
+        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 40px 40px, 40px 40px;
+    }
+    .glow-cyan:hover {
+      box-shadow: 0 0 25px -5px rgba(56, 189, 248, 0.25);
+    }
+    .glow-amber:hover {
+      box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.25);
+    }
+    .glow-emerald:hover {
+      box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.25);
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0c101b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #232f4c;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #38bdf8;
+    }
+  </style>
+</head>
+<body class="grid-bg min-h-screen flex flex-col selection:bg-cyan-500 selection:text-black">
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-50 backdrop-blur-md bg-cyber-950/80 border-b border-cyber-border">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 font-mono font-black text-black text-lg">
+          ⚡
+        </div>
+        <div>
+          <span class="font-mono font-bold text-sm tracking-widest text-white uppercase">Very Simple Simulations</span>
+          <span class="hidden sm:inline-block ml-2 px-1.5 py-0.5 text-[10px] font-mono uppercase rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 font-semibold">Labs v2.4</span>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <a href="https://github.com/mirjalal/very-simple-simulations" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2 px-3.5 py-1.5 rounded-lg bg-cyber-850 hover:bg-cyber-800 text-slate-300 hover:text-white border border-cyber-border transition-all text-xs font-mono font-medium">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          <span>Star on GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main class="flex-grow">
+    <section class="relative pt-12 pb-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
+      <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-800/50 text-cyan-300 text-xs font-mono mb-6">
+        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+        <span>100% Client-Side Physics • Zero Dependencies • Pure Canvas 2D</span>
+      </div>
+
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white max-w-4xl mx-auto leading-tight font-sans">
+        Deep, Deterministic <br class="hidden sm:block" />
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400">
+          In-Browser Physics Laboratories
+        </span>
+      </h1>
+
+      <p class="mt-4 text-base sm:text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+        Interactive vehicle dynamics, powertrain soil mechanics, and aerodynamic flight simulators. Single-file standalone architecture designed for clarity, performance, and immediate experimentation.
+      </p>
+
+      <!-- Search & Category Filters -->
+      <div class="mt-8 max-w-2xl mx-auto space-y-4">
+        <!-- Search bar -->
+        <div class="relative">
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="Search physics models, vehicle dynamics, torque, vectors..." 
+            class="w-full px-4 py-3 pl-11 rounded-xl bg-cyber-900 border border-cyber-border text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono"
+            oninput="handleSearch()"
+          />
+          <svg class="w-5 h-5 text-slate-500 absolute left-3.5 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+
+        <!-- Filter tabs -->
+        <div class="flex flex-wrap items-center justify-center gap-2 pt-2">
+          <button onclick="setFilter('all')" id="btn-all" class="filter-btn px-3.5 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all bg-cyan-500 text-black">
+            All Labs (3)
+          </button>
+          <button onclick="setFilter('motorsports')" id="btn-motorsports" class="filter-btn px-3.5 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all bg-cyber-900 text-slate-400 hover:text-white border border-cyber-border">
+            🏎️ Motorsports Dynamics
+          </button>
+          <button onclick="setFilter('drivetrain')" id="btn-drivetrain" class="filter-btn px-3.5 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all bg-cyber-900 text-slate-400 hover:text-white border border-cyber-border">
+            🚛 Heavy Machinery & Traction
+          </button>
+          <button onclick="setFilter('aerodynamics')" id="btn-aerodynamics" class="filter-btn px-3.5 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all bg-cyber-900 text-slate-400 hover:text-white border border-cyber-border">
+            🪁 Aerodynamics & Vectors
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Simulation Cards Grid -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div id="cardsGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        <!-- CARD 1: APEX LAB -->
+        <div class="sim-card group flex flex-col rounded-2xl bg-cyber-900 border border-cyber-border overflow-hidden transition-all duration-300 hover:-translate-y-1 glow-cyan" data-category="motorsports" data-keywords="trail braking apex telemetry motorsports racing car brake gas tire friction circle g-force weight transfer">
+          <!-- Live Preview Canvas -->
+          <div class="relative h-48 bg-cyber-950 border-b border-cyber-border overflow-hidden">
+            <canvas id="previewApex" class="w-full h-full block"></canvas>
+            <div class="absolute top-3 left-3 flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase bg-cyan-950/90 text-cyan-300 border border-cyan-800">Vehicle Dynamics</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase bg-emerald-950/90 text-emerald-300 border border-emerald-800">60 FPS Telemetry</span>
+            </div>
+            <div class="absolute bottom-2 right-3 font-mono text-[10px] text-slate-400 bg-black/60 px-2 py-0.5 rounded">
+              v3.5 Matrix
+            </div>
+          </div>
+
+          <!-- Card Content -->
+          <div class="p-6 flex-grow flex flex-col justify-between">
+            <div>
+              <div class="flex items-baseline justify-between mb-2">
+                <h3 class="text-xl font-bold font-mono text-white tracking-wide group-hover:text-cyan-400 transition-colors">
+                  APEX LAB
+                </h3>
+                <span class="font-mono text-xs text-cyan-400 font-semibold">Race Telemetry</span>
+              </div>
+              <p class="text-sm font-semibold text-slate-300 mb-2 font-mono">
+                Trail Braking & Corner Pedal Modulation Sim
+              </p>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                Interactive motorsports dynamics lab focused on threshold braking, weight transfer roll angles, and the tire traction ellipse. Compare live pedal trace telemetry against the AI reference ghost line across Late, Geometric, and Early apex configurations.
+              </p>
+
+              <!-- Tags -->
+              <div class="flex flex-wrap gap-1.5 mb-5 font-mono text-[11px]">
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">Friction Ellipse</span>
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">Trail Braking</span>
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">Weight Transfer</span>
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">Ghost Telemetry</span>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="space-y-2.5 pt-2 border-t border-cyber-border/60">
+              <a href="apex_trail_braking_telemetry_trainer.html" class="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-mono font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-cyan-500/10 hover:shadow-cyan-500/30">
+                <span>Launch Simulation</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                </svg>
+              </a>
+
+              <button onclick="toggleDetails('details-apex')" class="w-full py-1.5 px-3 rounded-lg bg-cyber-850 hover:bg-cyber-800 text-slate-400 hover:text-slate-200 text-xs font-mono font-medium transition-all border border-cyber-border flex items-center justify-between">
+                <span>View Controls & Intel</span>
+                <span id="icon-details-apex">+</span>
+              </button>
+
+              <!-- Collapsible Drawer -->
+              <div id="details-apex" class="hidden mt-3 p-3.5 rounded-xl bg-cyber-950 border border-cyber-border text-xs font-mono space-y-2.5 text-slate-300">
+                <div class="text-cyan-400 font-bold uppercase tracking-wider text-[11px]">Primary Controls:</div>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">W</kbd> / <kbd class="px-1 py-0.5 rounded bg-cyber-800 text-white font-bold">↑</kbd> Throttle</div>
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">S</kbd> / <kbd class="px-1 py-0.5 rounded bg-cyber-800 text-white font-bold">↓</kbd> Brake</div>
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">A</kbd> / <kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">D</kbd> Steering</div>
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">R</kbd> Retry Run</div>
+                </div>
+                <div class="text-slate-400 text-[10px] leading-relaxed pt-1 border-t border-cyber-border/40">
+                  Includes Auto-Steer / Pedals-Only mode, tire load grip circle, G-force plot, and Delta timing curves against ideal braking thresholds.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 2: RIG LAB -->
+        <div class="sim-card group flex flex-col rounded-2xl bg-cyber-900 border border-cyber-border overflow-hidden transition-all duration-300 hover:-translate-y-1 glow-amber" data-category="drivetrain" data-keywords="heavy rig truck semi drivetrain differential lock wheel spin mud terrain torque rpm retarder soil excavation">
+          <!-- Live Preview Canvas -->
+          <div class="relative h-48 bg-cyber-950 border-b border-cyber-border overflow-hidden">
+            <canvas id="previewRig" class="w-full h-full block"></canvas>
+            <div class="absolute top-3 left-3 flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase bg-amber-950/90 text-amber-300 border border-amber-800">Terramechanics</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase bg-cyan-950/90 text-cyan-300 border border-cyan-800">Web Audio Synth</span>
+            </div>
+            <div class="absolute bottom-2 right-3 font-mono text-[10px] text-slate-400 bg-black/60 px-2 py-0.5 rounded">
+              Multi-Axle Sim
+            </div>
+          </div>
+
+          <!-- Card Content -->
+          <div class="p-6 flex-grow flex flex-col justify-between">
+            <div>
+              <div class="flex items-baseline justify-between mb-2">
+                <h3 class="text-xl font-bold font-mono text-white tracking-wide group-hover:text-amber-400 transition-colors">
+                  RIG LAB
+                </h3>
+                <span class="font-mono text-xs text-amber-400 font-semibold">Heavy Transport</span>
+              </div>
+              <p class="text-sm font-semibold text-slate-300 mb-2 font-mono">
+                Heavy-Duty Semi & B-Double Drivetrain Lab
+              </p>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                Simulates heavy commercial diesel trucks across extreme surfaces. Features transmission torque multiplication, tandem drive wheel slip, rut excavation, bulldozing resistance, differential locking, and procedural pneumatic audio synthesis.
+              </p>
+
+              <!-- Tags -->
+              <div class="flex flex-wrap gap-1.5 mb-5 font-mono text-[11px]">
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">Torque Multiplier</span>
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">Rut Excavation</span>
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">Diff Lock [L]</span>
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">Jake Brake</span>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="space-y-2.5 pt-2 border-t border-cyber-border/60">
+              <a href="heavy_rig_drivetrain_terrain_physics_lab.html" class="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-black font-mono font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-amber-500/10 hover:shadow-amber-500/30">
+                <span>Launch Simulation</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                </svg>
+              </a>
+
+              <button onclick="toggleDetails('details-rig')" class="w-full py-1.5 px-3 rounded-lg bg-cyber-850 hover:bg-cyber-800 text-slate-400 hover:text-slate-200 text-xs font-mono font-medium transition-all border border-cyber-border flex items-center justify-between">
+                <span>View Controls & Intel</span>
+                <span id="icon-details-rig">+</span>
+              </button>
+
+              <!-- Collapsible Drawer -->
+              <div id="details-rig" class="hidden mt-3 p-3.5 rounded-xl bg-cyber-950 border border-cyber-border text-xs font-mono space-y-2.5 text-slate-300">
+                <div class="text-amber-400 font-bold uppercase tracking-wider text-[11px]">Primary Controls:</div>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">W</kbd> Throttle</div>
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">S</kbd> Air Brakes</div>
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">Q</kbd> / <kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">E</kbd> Shift Down / Up</div>
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">L</kbd> Diff Lock</div>
+                  <div><kbd class="px-1 py-0.5 rounded bg-cyber-800 text-white font-bold">Space</kbd> Retarder</div>
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">B</kbd> Parking Brake</div>
+                </div>
+                <div class="text-slate-400 text-[10px] leading-relaxed pt-1 border-t border-cyber-border/40">
+                  Features 3 configurations: 36t Semi, 62t B-Double, and 78t Road-Train. Dynamic ground deformation models mud pack compaction and frame rail high-centering.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 3: AEROKITE -->
+        <div class="sim-card group flex flex-col rounded-2xl bg-cyber-900 border border-cyber-border overflow-hidden transition-all duration-300 hover:-translate-y-1 glow-emerald" data-category="aerodynamics" data-keywords="kite aerodynamics physics wind lift drag tension tether catenary bridle angle of attack air density vectors">
+          <!-- Live Preview Canvas -->
+          <div class="relative h-48 bg-cyber-950 border-b border-cyber-border overflow-hidden">
+            <canvas id="previewKite" class="w-full h-full block"></canvas>
+            <div class="absolute top-3 left-3 flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase bg-emerald-950/90 text-emerald-300 border border-emerald-800">Aerodynamics</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase bg-sky-950/90 text-sky-300 border border-sky-800">Vector FBD</span>
+            </div>
+            <div class="absolute bottom-2 right-3 font-mono text-[10px] text-slate-400 bg-black/60 px-2 py-0.5 rounded">
+              AeroKite v2.4
+            </div>
+          </div>
+
+          <!-- Card Content -->
+          <div class="p-6 flex-grow flex flex-col justify-between">
+            <div>
+              <div class="flex items-baseline justify-between mb-2">
+                <h3 class="text-xl font-bold font-mono text-white tracking-wide group-hover:text-emerald-400 transition-colors">
+                  AeroKite
+                </h3>
+                <span class="font-mono text-xs text-emerald-400 font-semibold">Fluid Dynamics</span>
+              </div>
+              <p class="text-sm font-semibold text-slate-300 mb-2 font-mono">
+                Interactive Kite Aerodynamics & Force Vector Lab
+              </p>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                Real-time tethered aerodynamic flight physics simulator. Features atmospheric boundary layer wind shear, live Free-Body Diagram vector arrows (Lift, Drag, Tension, Gravity), bridle tuning, apparent wind surges, and dynamic tether catenary sag.
+              </p>
+
+              <!-- Tags -->
+              <div class="flex flex-wrap gap-1.5 mb-5 font-mono text-[11px]">
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">Lift & Drag Vectors</span>
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">Tether Tension</span>
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">Boundary Layer</span>
+                <span class="px-2 py-0.5 rounded bg-cyber-850 text-slate-300 border border-cyber-border">AoA Stall Limit</span>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="space-y-2.5 pt-2 border-t border-cyber-border/60">
+              <a href="kite_physics_aerodynamics_simulation.html" class="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-black font-mono font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/30">
+                <span>Launch Simulation</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                </svg>
+              </a>
+
+              <button onclick="toggleDetails('details-kite')" class="w-full py-1.5 px-3 rounded-lg bg-cyber-850 hover:bg-cyber-800 text-slate-400 hover:text-slate-200 text-xs font-mono font-medium transition-all border border-cyber-border flex items-center justify-between">
+                <span>View Controls & Intel</span>
+                <span id="icon-details-kite">+</span>
+              </button>
+
+              <!-- Collapsible Drawer -->
+              <div id="details-kite" class="hidden mt-3 p-3.5 rounded-xl bg-cyber-950 border border-cyber-border text-xs font-mono space-y-2.5 text-slate-300">
+                <div class="text-emerald-400 font-bold uppercase tracking-wider text-[11px]">Primary Controls:</div>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">Space</kbd> Winch Line Tug</div>
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">Gust</kbd> Wind Pulse</div>
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">Sliders</kbd> α, Wind, Length</div>
+                  <div><kbd class="px-1.5 py-0.5 rounded bg-cyber-800 text-white font-bold">Presets</kbd> Gale, Stall, etc.</div>
+                </div>
+                <div class="text-slate-400 text-[10px] leading-relaxed pt-1 border-t border-cyber-border/40">
+                  Full vector decomposition HUD: F_L, F_D, F_g, and tether tension F_T. Live streamlines visualize wind speed variation with altitude.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- No Results State -->
+      <div id="noResults" class="hidden text-center py-16">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-cyber-900 border border-cyber-border flex items-center justify-center text-slate-500 font-mono text-2xl">
+          ∅
+        </div>
+        <h3 class="text-lg font-bold font-mono text-slate-300 mb-1">No simulations matched your query</h3>
+        <p class="text-sm text-slate-500 font-mono">Try searching for "braking", "torque", "aerodynamics", or "differentials".</p>
+      </div>
+    </section>
+
+    <!-- Architecture & Features Highlights Section -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-cyber-border/60">
+      <div class="text-center max-w-3xl mx-auto mb-12">
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight">
+          Engineered for Purity & Simplicity
+        </h2>
+        <p class="mt-2 text-sm text-slate-400 font-mono">
+          Why build complex toolchains when modern browsers already offer high-performance math and canvas rendering?
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="p-5 rounded-2xl bg-cyber-900/60 border border-cyber-border">
+          <div class="w-10 h-10 rounded-xl bg-cyan-950 border border-cyan-800 flex items-center justify-center text-cyan-400 text-lg mb-3">
+            📦
+          </div>
+          <h4 class="font-mono font-bold text-sm text-white mb-1.5">Zero Build Step</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            No <code class="text-cyan-300">node_modules</code>, no Webpack, no Vite. Open any simulation directly in Chrome, Safari, Firefox, or Edge.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-cyber-900/60 border border-cyber-border">
+          <div class="w-10 h-10 rounded-xl bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400 text-lg mb-3">
+            ⚡
+          </div>
+          <h4 class="font-mono font-bold text-sm text-white mb-1.5">60 FPS Physics</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Symplectic Euler integration, discrete sub-stepping, collision friction dynamics, and aerodynamic matrices computed per frame.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-cyber-900/60 border border-cyber-border">
+          <div class="w-10 h-10 rounded-xl bg-amber-950 border border-amber-800 flex items-center justify-center text-amber-400 text-lg mb-3">
+            🔊
+          </div>
+          <h4 class="font-mono font-bold text-sm text-white mb-1.5">Web Audio Synth</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Procedural multi-oscillator audio synthesis for engine revs, turbo spool, tire squeal, and pneumatic brake bursts without external audio files.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-cyber-900/60 border border-cyber-border">
+          <div class="w-10 h-10 rounded-xl bg-purple-950 border border-purple-800 flex items-center justify-center text-purple-400 text-lg mb-3">
+            📊
+          </div>
+          <h4 class="font-mono font-bold text-sm text-white mb-1.5">Live Telemetry</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Real-time strip charts, traction ellipses, aerodynamic free-body diagrams, and performance delta comparisons built right into the HUD.
+          </p>
+        </div>
+      </div>
+
+      <!-- Quick Run Locally Snippet -->
+      <div class="mt-12 p-6 rounded-2xl bg-cyber-900 border border-cyber-border max-w-3xl mx-auto">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>Quick Start / Run Locally</span>
+          </span>
+          <button onclick="copyCommand()" id="copyBtn" class="text-xs font-mono text-cyan-400 hover:text-cyan-300 transition-colors">
+            Copy command
+          </button>
+        </div>
+        <pre class="bg-cyber-950 p-4 rounded-xl font-mono text-xs text-slate-300 overflow-x-auto border border-cyber-border/80"><span class="text-slate-500"># Clone the repository and serve instantly</span>
+git clone https://github.com/mirjalal/very-simple-simulations.git
+cd very-simple-simulations
+python3 -m http.server 8080</pre>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-cyber-border bg-cyber-950 py-8 px-4 sm:px-6 lg:px-8 text-center text-xs font-mono text-slate-500">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center space-x-2 text-slate-400">
+        <span>⚡ Very Simple Simulations</span>
+        <span>•</span>
+        <span>MIT Licensed</span>
+      </div>
+      <div>
+        Crafted by <a href="https://github.com/mirjalal" target="_blank" rel="noopener noreferrer" class="text-slate-300 hover:text-cyan-400 underline underline-offset-4 transition-colors">Mirjalal</a>
+      </div>
+      <div>
+        <a href="https://github.com/mirjalal/very-simple-simulations" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-white transition-colors">
+          GitHub Repository ↗
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Interactive Scripts & Mini Canvas Visualizers -->
+  <script>
+    // Filtering logic
+    let currentFilter = 'all';
+
+    function setFilter(cat) {
+      currentFilter = cat;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-cyan-500', 'text-black');
+        btn.classList.add('bg-cyber-900', 'text-slate-400', 'border', 'border-cyber-border');
+      });
+      const activeBtn = document.getElementById('btn-' + cat);
+      if (activeBtn) {
+        activeBtn.classList.remove('bg-cyber-900', 'text-slate-400', 'border', 'border-cyber-border');
+        activeBtn.classList.add('bg-cyan-500', 'text-black');
+      }
+      applyFilters();
+    }
+
+    function handleSearch() {
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const cards = document.querySelectorAll('.sim-card');
+      let visibleCount = 0;
+
+      cards.forEach(card => {
+        const cat = card.getAttribute('data-category');
+        const keywords = card.getAttribute('data-keywords').toLowerCase();
+        const text = card.innerText.toLowerCase();
+
+        const matchesCat = (currentFilter === 'all' || cat === currentFilter);
+        const matchesQuery = (!query || keywords.includes(query) || text.includes(query));
+
+        if (matchesCat && matchesQuery) {
+          card.classList.remove('hidden');
+          visibleCount++;
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+
+      const noResults = document.getElementById('noResults');
+      if (visibleCount === 0) {
+        noResults.classList.remove('hidden');
+      } else {
+        noResults.classList.add('hidden');
+      }
+    }
+
+    // Toggle Intel Drawer
+    function toggleDetails(id) {
+      const el = document.getElementById(id);
+      const icon = document.getElementById('icon-' + id);
+      if (el.classList.contains('hidden')) {
+        el.classList.remove('hidden');
+        if (icon) icon.innerText = '−';
+      } else {
+        el.classList.add('hidden');
+        if (icon) icon.innerText = '+';
+      }
+    }
+
+    // Copy command
+    function copyCommand() {
+      const text = "git clone https://github.com/mirjalal/very-simple-simulations.git && cd very-simple-simulations && python3 -m http.server 8080";
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.innerText = 'Copied to clipboard!';
+        btn.classList.add('text-emerald-400');
+        setTimeout(() => {
+          btn.innerText = 'Copy command';
+          btn.classList.remove('text-emerald-400');
+        }, 2000);
+      });
+    }
+
+    // ==========================================
+    // MINI PREVIEW CANVASES (60 FPS Backgrounds)
+    // ==========================================
+
+    // 1. APEX LAB MINI CANVAS: Car trail-braking along a curved racing line
+    const cApex = document.getElementById('previewApex');
+    const ctxApex = cApex.getContext('2d');
+    let tApex = 0;
+
+    function drawApexPreview() {
+      const w = cApex.width = cApex.clientWidth * window.devicePixelRatio || 300;
+      const h = cApex.height = cApex.clientHeight * window.devicePixelRatio || 192;
+      ctxApex.clearRect(0, 0, w, h);
+
+      // Track curve
+      ctxApex.lineWidth = 28 * (w / 300);
+      ctxApex.strokeStyle = '#171f33';
+      ctxApex.lineCap = 'round';
+      ctxApex.beginPath();
+      ctxApex.moveTo(w * 0.1, h * 0.85);
+      ctxApex.quadraticCurveTo(w * 0.45, h * 0.8, w * 0.5, h * 0.4);
+      ctxApex.quadraticCurveTo(w * 0.55, h * 0.1, w * 0.9, h * 0.15);
+      ctxApex.stroke();
+
+      // Apex curbing
+      ctxApex.lineWidth = 5 * (w / 300);
+      ctxApex.strokeStyle = '#ef4444';
+      ctxApex.beginPath();
+      ctxApex.arc(w * 0.5, h * 0.45, 18 * (w / 300), Math.PI * 0.8, Math.PI * 1.6);
+      ctxApex.stroke();
+
+      // Parametric car position along curve
+      tApex = (tApex + 0.007) % 1;
+      let carX, carY, heading;
+      if (tApex < 0.5) {
+        const p = tApex / 0.5;
+        carX = (1 - p) * (1 - p) * (w * 0.1) + 2 * (1 - p) * p * (w * 0.45) + p * p * (w * 0.5);
+        carY = (1 - p) * (1 - p) * (h * 0.85) + 2 * (1 - p) * p * (h * 0.8) + p * p * (h * 0.4);
+      } else {
+        const p = (tApex - 0.5) / 0.5;
+        carX = (1 - p) * (1 - p) * (w * 0.5) + 2 * (1 - p) * p * (w * 0.55) + p * p * (w * 0.9);
+        carY = (1 - p) * (1 - p) * (h * 0.4) + 2 * (1 - p) * p * (h * 0.1) + p * p * (h * 0.15);
+      }
+
+      // Trail braking telemetry bar indicator (red = braking, green = throttle)
+      ctxApex.fillStyle = tApex < 0.45 ? '#ef4444' : '#10b981';
+      ctxApex.shadowColor = ctxApex.fillStyle;
+      ctxApex.shadowBlur = 10;
+      ctxApex.beginPath();
+      ctxApex.arc(carX, carY, 6 * (w / 300), 0, Math.PI * 2);
+      ctxApex.fill();
+      ctxApex.shadowBlur = 0;
+
+      // Telemetry HUD overlay in mini canvas
+      ctxApex.fillStyle = '#38bdf8';
+      ctxApex.font = `${9 * (w / 300)}px 'JetBrains Mono', monospace`;
+      ctxApex.fillText(tApex < 0.45 ? "BRAKE 78% (TRAIL)" : "THROTTLE 100%", w * 0.08, h * 0.22);
+    }
+
+    // 2. RIG LAB MINI CANVAS: Drivetrain rotating axles & mud rut
+    const cRig = document.getElementById('previewRig');
+    const ctxRig = cRig.getContext('2d');
+    let tRig = 0;
+
+    function drawRigPreview() {
+      const w = cRig.width = cRig.clientWidth * window.devicePixelRatio || 300;
+      const h = cRig.height = cRig.clientHeight * window.devicePixelRatio || 192;
+      ctxRig.clearRect(0, 0, w, h);
+
+      tRig += 0.05;
+
+      // Ground profile with mud rut depression
+      ctxRig.fillStyle = '#171f33';
+      ctxRig.beginPath();
+      ctxRig.moveTo(0, h * 0.7);
+      ctxRig.lineTo(w * 0.35, h * 0.7);
+      ctxRig.quadraticCurveTo(w * 0.55, h * 0.88, w * 0.75, h * 0.7);
+      ctxRig.lineTo(w, h * 0.7);
+      ctxRig.lineTo(w, h);
+      ctxRig.lineTo(0, h);
+      ctxRig.closePath();
+      ctxRig.fill();
+
+      // Mud texture line
+      ctxRig.strokeStyle = '#92400e';
+      ctxRig.lineWidth = 4 * (w / 300);
+      ctxRig.beginPath();
+      ctxRig.moveTo(w * 0.35, h * 0.7);
+      ctxRig.quadraticCurveTo(w * 0.55, h * 0.88, w * 0.75, h * 0.7);
+      ctxRig.stroke();
+
+      // Chassis frame bar
+      ctxRig.strokeStyle = '#64748b';
+      ctxRig.lineWidth = 6 * (w / 300);
+      ctxRig.beginPath();
+      ctxRig.moveTo(w * 0.2, h * 0.52);
+      ctxRig.lineTo(w * 0.8, h * 0.52);
+      ctxRig.stroke();
+
+      // Tandem Wheels
+      const wheels = [
+        { x: w * 0.48, y: h * 0.73 },
+        { x: w * 0.64, y: h * 0.71 }
+      ];
+
+      wheels.forEach((wh, idx) => {
+        const radius = 18 * (w / 300);
+        ctxRig.fillStyle = '#0f172a';
+        ctxRig.strokeStyle = '#f59e0b';
+        ctxRig.lineWidth = 3;
+        ctxRig.beginPath();
+        ctxRig.arc(wh.x, wh.y, radius, 0, Math.PI * 2);
+        ctxRig.fill();
+        ctxRig.stroke();
+
+        // Spokes
+        const angle = tRig * 1.8 + idx * 0.5;
+        ctxRig.strokeStyle = '#475569';
+        ctxRig.lineWidth = 2;
+        ctxRig.beginPath();
+        ctxRig.moveTo(wh.x - Math.cos(angle) * radius, wh.y - Math.sin(angle) * radius);
+        ctxRig.lineTo(wh.x + Math.cos(angle) * radius, wh.y + Math.sin(angle) * radius);
+        ctxRig.stroke();
+
+        // Mud spray particles
+        for (let i = 0; i < 3; i++) {
+          const px = wh.x - radius - (Math.sin(tRig * 3 + i) * 12 + 6);
+          const py = wh.y + (Math.cos(tRig * 2 + i) * 10 - 2);
+          ctxRig.fillStyle = '#b45309';
+          ctxRig.fillRect(px, py, 3, 3);
+        }
+      });
+
+      // HUD readout
+      ctxRig.fillStyle = '#f59e0b';
+      ctxRig.font = `${9 * (w / 300)}px 'JetBrains Mono', monospace`;
+      ctxRig.fillText("TORQUE: 3200 Nm • SLIP: 42%", w * 0.08, h * 0.22);
+    }
+
+    // 3. AEROKITE MINI CANVAS: Kite tethered in wind with lift/drag force vectors
+    const cKite = document.getElementById('previewKite');
+    const ctxKite = cKite.getContext('2d');
+    let tKite = 0;
+
+    function drawKitePreview() {
+      const w = cKite.width = cKite.clientWidth * window.devicePixelRatio || 300;
+      const h = cKite.height = cKite.clientHeight * window.devicePixelRatio || 192;
+      ctxKite.clearRect(0, 0, w, h);
+
+      tKite += 0.04;
+
+      // Ground anchor point
+      const anchorX = w * 0.15;
+      const anchorY = h * 0.88;
+
+      // Kite hovering target with gentle gust oscillation
+      const kiteX = w * 0.68 + Math.sin(tKite * 0.9) * 10;
+      const kiteY = h * 0.32 + Math.cos(tKite * 1.4) * 8;
+
+      // Streamlines (wind tunnel airflow)
+      ctxKite.strokeStyle = 'rgba(56, 189, 248, 0.15)';
+      ctxKite.lineWidth = 1.5;
+      for (let i = 0; i < 4; i++) {
+        const sy = h * (0.2 + i * 0.18);
+        const offset = (tKite * 40 + i * 50) % w;
+        ctxKite.beginPath();
+        ctxKite.moveTo(0, sy);
+        ctxKite.lineTo(w, sy);
+        ctxKite.stroke();
+
+        ctxKite.fillStyle = '#38bdf8';
+        ctxKite.fillRect(offset, sy - 1, 14, 2);
+      }
+
+      // Flexible catenary tether line
+      ctxKite.strokeStyle = '#94a3b8';
+      ctxKite.lineWidth = 1.5;
+      ctxKite.beginPath();
+      ctxKite.moveTo(anchorX, anchorY);
+      // Tether sag
+      const sagX = (anchorX + kiteX) * 0.5 + 10;
+      const sagY = (anchorY + kiteY) * 0.5 + 20;
+      ctxKite.quadraticCurveTo(sagX, sagY, kiteX, kiteY);
+      ctxKite.stroke();
+
+      // Kite body (Diamond airfoil)
+      ctxKite.save();
+      ctxKite.translate(kiteX, kiteY);
+      ctxKite.rotate(-0.35 + Math.sin(tKite) * 0.08);
+
+      ctxKite.fillStyle = '#10b981';
+      ctxKite.strokeStyle = '#34d399';
+      ctxKite.lineWidth = 2;
+      ctxKite.beginPath();
+      ctxKite.moveTo(0, -16 * (w / 300));
+      ctxKite.lineTo(12 * (w / 300), 0);
+      ctxKite.lineTo(0, 22 * (w / 300));
+      ctxKite.lineTo(-12 * (w / 300), 0);
+      ctxKite.closePath();
+      ctxKite.fill();
+      ctxKite.stroke();
+
+      // Force Vector Arrows (Lift: Green up, Drag: Amber right)
+      ctxKite.restore();
+
+      // Lift vector
+      ctxKite.strokeStyle = '#34d399';
+      ctxKite.lineWidth = 2.5;
+      ctxKite.beginPath();
+      ctxKite.moveTo(kiteX, kiteY);
+      ctxKite.lineTo(kiteX, kiteY - 32 * (w / 300));
+      ctxKite.stroke();
+
+      // Drag vector
+      ctxKite.strokeStyle = '#f87171';
+      ctxKite.beginPath();
+      ctxKite.moveTo(kiteX, kiteY);
+      ctxKite.lineTo(kiteX + 28 * (w / 300), kiteY);
+      ctxKite.stroke();
+
+      // HUD readout
+      ctxKite.fillStyle = '#10b981';
+      ctxKite.font = `${9 * (w / 300)}px 'JetBrains Mono', monospace`;
+      ctxKite.fillText("LIFT: 14.2 N • DRAG: 6.8 N", w * 0.08, h * 0.22);
+    }
+
+    // Shared Animation Loop
+    function animate() {
+      drawApexPreview();
+      drawRigPreview();
+      drawKitePreview();
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    // Resize listener for sharp canvases
+    window.addEventListener('resize', () => {
+      // Dimensions will be refreshed in the next frame automatically
+    });
+  </script>
+</body>
+</html>
